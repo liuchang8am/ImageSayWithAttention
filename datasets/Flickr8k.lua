@@ -7,6 +7,7 @@ require 'hdf5' -- read .h5 file format
 require 'dp'
 require 'torchx' -- for paths.indexdir
 require 'image'
+require 'lfs'
 
 ---------------------------------------------------------------------------
 --- First, let's try to convert the Flickr8k dataset into dp.dataset format
@@ -15,8 +16,10 @@ require 'image'
 ---------------------------------------------------------------------------
 
 local Flickr8k = torch.class("Flickr8k") -- customize class
-
-package.path = '../misc/utils.lua;' .. package.path
+local utils_path = lfs.currentdir()..'/misc/utils.lua;'
+--package.path = '../misc/utils.lua;' .. package.path
+package.path = utils_path..package.path
+print (package.path)
 require 'utils' -- utility functions
 
 ----------------------------------------------------------
@@ -82,7 +85,6 @@ function Flickr8k:showImg(id)
     print ('---------------------------------------------------------------')
     local str = string.format('---- info of image %d -----', id)
     print (str)
-    require 'image'
     local flickr8k = self._flickr8k
     image.display(flickr8k[1][id]) -- first [1]: the images field of flickr8k; second [1]: the first image of the images
     print ()
