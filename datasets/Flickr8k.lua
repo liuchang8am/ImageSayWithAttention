@@ -4,9 +4,7 @@
 
 --require("mobdebug").start()
 require 'hdf5' -- read .h5 file format
-require 'dp'
 require 'torchx' -- for paths.indexdir
-require 'image'
 require 'lfs'
 
 ---------------------------------------------------------------------------
@@ -16,11 +14,11 @@ require 'lfs'
 ---------------------------------------------------------------------------
 
 local Flickr8k = torch.class("Flickr8k") -- customize class
-local utils_path = lfs.currentdir()..'/misc/utils.lua;'
+--local utils_path = lfs.currentdir()..'/misc/utils.lua;'
 --package.path = '../misc/utils.lua;' .. package.path
-package.path = utils_path..package.path
-print (package.path)
-require 'utils' -- utility functions
+--package.path = utils_path..package.path
+--print (package.path)
+--require 'utils' -- utility functions
 
 ----------------------------------------------------------
 --- Initialize function, does the following:
@@ -29,7 +27,6 @@ require 'utils' -- utility functions
 ---	3. Arrange those info into a flickr8k table
 -----------------------------------------------------------
 function Flickr8k:__init(datapath)
-     
     -- 1. load the images, and the caption sentences
     -- pre-prepared with neuraltalk2/prepo.py, to create lua-readable data
 
@@ -86,6 +83,8 @@ function Flickr8k:showImg(id)
     local str = string.format('---- info of image %d -----', id)
     print (str)
     local flickr8k = self._flickr8k
+    --print (flickr8k[1][id]) 
+    local image = require 'image'
     image.display(flickr8k[1][id]) -- first [1]: the images field of flickr8k; second [1]: the first image of the images
     print ()
     print ('---- File name:', flickr8k[3][id]['file_path']) 
@@ -106,4 +105,7 @@ function Flickr8k:showImg(id)
     print ('.')
     print ('---------------------------------------------------------------')
 end
-
+function Flickr8k:show()
+    require "image"
+    image.display(image.lena())
+end
