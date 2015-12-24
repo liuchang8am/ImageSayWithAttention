@@ -1,5 +1,5 @@
 local cjson = require 'cjson'
-local utils = {}
+utils = {}
 
 -- Assume required if default_value is nil
 function utils.getopt(opt, key, default_value)
@@ -69,9 +69,19 @@ function utils.average_values(t)
 end
 
 -- check if file exists
-function utils.file_exists(name)
+function utils.isFile(name)
    local f=io.open(name,"r")
    if f~=nil then io.close(f) return true else return false end
+end
+
+function utils.exists(name)
+    if utils.isFile(name) then
+	return true
+    else
+	str = string.format("Error. File %s does not exist. Please check.", name)
+	print (str)
+	return false
+    end
 end
 
 return utils

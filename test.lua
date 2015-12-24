@@ -1,6 +1,18 @@
-require('mobdebug').start()
-require "dp"
+require 'misc.utils'
+require 'datasets.Flickr8k'
+require 'lfs'
+require 'torch'
 
-ds = dp['Flickr8k']()
-ds.name = "name is Flickr8k"
-print (ds.name)
+cmd = torch.CmdLine()
+cmd:text()
+cmd:text('Options')
+cmd:option('-dataset', 'flickr8k', 'which dataset to train. flickr8k, flickr30k or mscoco')
+
+local opt = cmd:parse(arg)
+
+
+dataset_path = lfs.currentdir()..'/data/'..opt.dataset
+
+print (dataset_path)
+ds = Flickr8k(dataset_path)
+ds:showImg(2)
