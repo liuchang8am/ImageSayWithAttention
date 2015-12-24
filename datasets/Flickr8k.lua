@@ -71,12 +71,53 @@ function Flickr8k:__init(datapath)
     return self._flickr8k 
 end
 
+
+-------------------------------------------------------
+--- Prepare Flickr8k into dp dataset
+-------------------------------------------------------
+
+function Flickr8k:setup()
+    self._train = Flickr8k:_setup_train() -- setup train
+    self._valid = Flickr8k:_setup_valid() -- setup valid
+    self._test = Flickr8k:_setup_test() -- setup test 
+end
+
+-------------------------------------------------------
+--- Prepare Flickr8k into dp dataset format for train
+-------------------------------------------------------
+
+function Flickr8k:_setup_train()
+    local flickr8k = self._flickr8k
+    local images_info = flickr8k[ 
+
+end
+
+-------------------------------------------------------
+--- Prepare Flickr8k into dp dataset format for valid
+-------------------------------------------------------
+
+function Flickr8k:_setup_valid()
+end
+
+
+
+-------------------------------------------------------
+--- Prepare Flickr8k into dp dataset format for test
+-------------------------------------------------------
+
+function Flickr8k:_setup_test()
+end
+
+
+
+
 ----------------------------------------------------
 --- show basic information of image[id], including:
 ---	1. display the image	
 ---	2. the file_path and the split 
 ---	3. ix_to_word codes of the sentences
 ---	4. the decoded sentence 
+--- #TODO: how to close the displayed image normally?
 ----------------------------------------------------
 function Flickr8k:showImg(id)
     print ('---------------------------------------------------------------')
@@ -109,3 +150,5 @@ function Flickr8k:show()
     require "image"
     image.display(image.lena())
 end
+
+
