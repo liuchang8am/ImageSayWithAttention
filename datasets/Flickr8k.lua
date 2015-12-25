@@ -38,6 +38,9 @@ function Flickr8k:__init(datapath)
     --	-> 'labels': (100, 16), 100 images; 16 as the longest sentence;
     --	->	    each containes a sequence of numbers, representing the numbered word 
     -- #TODO: add assertion to make sure file exists
+
+    print ('Preparing Flickr8k into dp.DataSource format ...')
+
     print ('Loading flickr8k data.h5 file ...')
     h5_file_path = datapath..'/'..'data.h5'
     if utils.exists(h5_file_path) then print ('Done.') else return end -- check whether file exists
@@ -68,112 +71,82 @@ function Flickr8k:__init(datapath)
 
     -- put the images, sentences, images_info, and ix_to_word all together into a flickr8k dataset
     self._flickr8k = {images, sentences, images_info, ix_to_word}
-    --return self._flickr8k  -- no need to return sth, right?
 end
 
 -------------------------------------------------------
 --- Prepare Flickr8k into dp dataset
 -------------------------------------------------------
-
 function Flickr8k:setup()
+    -- 1. divide into train, val, and test
     local train = self:_setup_train() -- setup train
-    local valid = self:_setup_valid() -- setup valid
+    local val = self:_setup_val() -- setup valid
     local test = self:_setup_test() -- setup test, shouldn't use test now
-    print (#train[1])
-    local trainInputs = dp.ImageView('bchw', train[1]:narrow(1,1, self._trainSize)) 
-    print (trainInputs)
-   -- local trainTargets = dp.ClassView('b', train[2]:narrow(1,1, #train[1]))
-   -- print (trainInputs, trainTargets)
+
+    -- 2. wrap into dp.Views
+    local trainInputs = dp.ImageView('bchw', train[1])
+    local trainTargets = dp.ClassView('bf', train[2]) -- 'bf', as dealt sentences as multi-classes
+
+    local valInputs = dp.ImageView('bchw', val[1])
+    local valTargets = dp.ClassView('bf', val[2])
+    
+    local testInputs = dp.ImageView('bchw', test[1])
+    local testTargets = dp.ClassView('bf', test[2])
+    
+    local classes = self:setup_classes() -- setup numeral classes, 1,2,3,...,vocab_size, as multi_class
+    trainTargets:setClasses(classes)
+    valTargets:setClasses(classes)
+    testTargets:setClasses(classes)
+
+    -- 3. wrap dp.Vies into dp.Dataset
+    local train = dp.DataSet{inputs=trainInputs, targets=trainTargets, which_set='train'} -- some duplication here, does not influece the logic
+    local val = dp.DataSet{inputs=valInputs, targets=valTargets, which_set='valid'}
+    
+    -- 4. wrap dp.DataSet into dp.DataSource
+    local ds = dp.DataSource{train_set=train, valid_set=val}
+    ds:classes{classes}
+
+    return ds 
 end
 
 -------------------------------------------------------
 --- Prepare Flickr8k into dp dataset format for train
 -------------------------------------------------------
 function Flickr8k:_setup_train()
-    local flickr8k = self._flickr8k
-    local images = flickr8k[1] -- flickr8k[1][i] -> image i
-     -- local images_2 = images[{{1,2}}] get 1 to 2 images of 100x3x256x256 images, as ByteTensor format
-    local images_info = flickr8k[3] -- flickr8k[3][id]{['file_path'],['split']} 
-    local sentences = flickr8k[2] -- flickr8k[2][id][i] -> word i
-
-
-    local train = {} -- {{inputs}, {targets}}
-    local inputs = {} -- 100x3x256x256 images
-    local targets = {} -- 100x(sentences) sentences
-    local idx = 1
-
-    for i = 1, images:size()[1] do
-	if images_info[i]['split'] == 'train' then
-	    -- setting up images
-	    inputs[idx] = images[i]:float()
-	    -- setting up sentences
-	    targets[idx] = sentences[i] 
-	    idx = idx + 1
-	end
-    end
-    self._trainSize = idx - 1
-    local str = string.format('Has %d training images', #inputs)
-    print (str)
-
-    -- convert inputs from table {image1, image2, ... } to tensor 100x3x256z256
-    local img_channel = inputs[1]:size()[1]
-    local img_height = inputs[1]:size()[2]
-    local img_width = inputs[1]:size()[3]
-
-    local images_tensor = torch.FloatTensor(self._trainSize, img_channel, img_height, img_width)
-    for i = 1, self._trainSize do
-	images_tensor[i] = inputs[i]
-    end
-
-    train = {images_tensor, targets} -- if return torch.FloatTensor type
-    --train = {inputs, targets} -- if return {} table type
-    return train
+    return self:setup_wrapper('train')
 end
 
 -------------------------------------------------------
 --- Prepare Flickr8k into dp dataset format for valid
 -------------------------------------------------------
-function Flickr8k:_setup_valid()
-    local flickr8k = self._flickr8k
-    local images = flickr8k[1] -- flickr8k[1][i] -> image i
-    local images_info = flickr8k[3] -- flickr8k[3][id]{['file_path'],['split']} 
-    local sentences = flickr8k[2] -- flickr8k[2][id][i] -> word i
-
-    local valid = {} -- {{inputs},{targets}} 
-    local inputs = {} -- 10x3x256x256 images
-    local targets = {} -- 10x(sentences) sentences
-    local idx = 1
-    for i = 1, images:size()[1] do
-	if images_info[i]['split'] == 'val' then
-	    -- setting up images
-	    inputs[idx] = images[i]:float()
-	    -- setting up sentences
-	    targets[idx] = sentences[i] 
-	    idx = idx + 1
-	end
-    end
-    local str = string.format('Has %d validation images', #inputs)
-    print (str)
-    valid = {inputs, targets}
-    return valid
+function Flickr8k:_setup_val()
+    return self:setup_wrapper('val')
 end
 
 -------------------------------------------------------
 --- Prepare Flickr8k into dp dataset format for test
 -------------------------------------------------------
-
 function Flickr8k:_setup_test()
+    return self:setup_wrapper('test')
+end
+
+-------------------------------------------------------
+--- Wrapper for setting up datasets
+-------------------------------------------------------
+function Flickr8k:setup_wrapper(which_set)
+    assert(which_set == 'train' or which_set == 'val' or which_set == 'test', 
+		'Error. Not supported split.')
     local flickr8k = self._flickr8k
     local images = flickr8k[1] -- flickr8k[1][i] -> image i
     local images_info = flickr8k[3] -- flickr8k[3][id]{['file_path'],['split']} 
     local sentences = flickr8k[2] -- flickr8k[2][id][i] -> word i
 
-    local test = {} -- {{inputs}, {targets}}
-    local inputs = {} -- 10x3x256x256 images
-    local targets = {} -- 10x(sentences) sentences
-    local idx = 1 
+    local split = {} -- {{inputs}, {targets}}
+    local inputs = {} -- 100x3x256x256 images
+    local targets = {} -- 100x(sentences) sentences
+    local idx = 1
+
     for i = 1, images:size()[1] do
-	if images_info[i]['split'] == 'test' then
+	if images_info[i]['split'] == which_set then
 	    -- setting up images
 	    inputs[idx] = images[i]:float()
 	    -- setting up sentences
@@ -181,10 +154,70 @@ function Flickr8k:_setup_test()
 	    idx = idx + 1
 	end
     end
-    local str = string.format('Has %d testing images', #inputs)
+    local splitSize
+    if which_set == 'train' then
+	self._trainSize = idx - 1
+	splitSize = self._trainSize	
+    elseif which_set == 'val' then
+	self._valSize = idx - 1
+	splitSize = self._valSize
+    else
+	self._testSize = idx -1
+	splitSize = self._testSize
+    end
+    local str = string.format('Has %d %s images', splitSize, which_set)
     print (str)
-    test = {inputs, targets}
-    return test
+
+    -- convert inputs from table {image1, image2, ... } to tensor 80x3x256z256
+    local img_channel = inputs[1]:size()[1]
+    local img_height = inputs[1]:size()[2]
+    local img_width = inputs[1]:size()[3]
+
+    local images_tensor = torch.FloatTensor(splitSize, img_channel, img_height, img_width)
+    for i = 1, splitSize do
+	images_tensor[i] = inputs[i]
+    end
+
+    split = {images_tensor, sentences_tensor} -- if return torch.FloatTensor type
+    --split = {inputs, targets} -- if return {} table type
+    return split 
+end
+
+-------------------------------------------------------
+--- setup the classes as multi-class using vocab words
+-------------------------------------------------------
+function Flickr8k:setup_classes()
+    local ix_to_word = self._flickr8k[4]
+    local classes = {}
+    for k,v in pairs(ix_to_word) do
+	table.insert(classes, tonumber(k))
+    end
+    --print (classes)
+    return classes
+end
+
+-------------------------------------------------
+--- get the max no. of the vocabulary
+-------------------------------------------------
+function Flickr8k:getMaxWordID()
+    local ix_to_word = self._flickr8k[4]
+    local max = 0
+    local vocab_size = 0 
+    for k, v in pairs(ix_to_word) do
+	k = tonumber(k)
+	if k >= max then max = k end
+	vocab_size = vocab_size + 1	
+    end --print (max)
+    --print (vocab_size)
+    return max
+end
+
+---------------------------------------------------------------------
+--- Debug functions
+---------------------------------------------------------------------
+function Flickr8k:showImage(image_tensor)
+    local image = require 'image'
+    image.display(image_tensor)
 end
 
 ----------------------------------------------------
@@ -195,7 +228,7 @@ end
 ---	4. the decoded sentence 
 --- #TODO: how to close the displayed image normally?
 ----------------------------------------------------
-function Flickr8k:showImg(id)
+function Flickr8k:showImgInfo(id)
     print ('---------------------------------------------------------------')
     local str = string.format('---- info of image %d -----', id)
     print (str)
@@ -222,9 +255,5 @@ function Flickr8k:showImg(id)
     print ('.')
     print ('---------------------------------------------------------------')
 end
-function Flickr8k:show()
-    require "image"
-    image.display(image.lena())
-end
 
-
+    
