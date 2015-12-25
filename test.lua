@@ -15,6 +15,7 @@ dataset_path = lfs.currentdir()..'/data/'..opt.dataset
 
 print (dataset_path) 
 ds = Flickr8k(dataset_path)
-
+--ds:setup_train()
+ds:setup()
 -- ds:showImg(2)
 
