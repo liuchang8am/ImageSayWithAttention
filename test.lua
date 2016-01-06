@@ -1,13 +1,15 @@
 --require('mobdebug').start()
+require 'dp'
+
 require 'misc/utils'
-require 'datasets.Flickr8k'
+--require 'datasets.Flickr8k'
 require 'lfs'
 require 'torch'
 require 'rnn'
 require 'dp'
 require 'image'
 
-ds = dp['Mnist']()
+
 
 -------------------------------------------
 --- command line parameters
@@ -28,14 +30,16 @@ cmd:option('--glimpseDepth', 1, 'number of concatenated downscaled patches')
 cmd:option('--locatorHiddenSize', 128, 'size of locator hidden layer')
 cmd:option('--imageHiddenSize', 256, 'size of hidden layer combining glimpse and locator hiddens')
 
-
 local opt = cmd:parse(arg)
 
 -------------------------------------------
 --- setup your dataset
 -------------------------------------------
-dataset_path = lfs.currentdir()..'/data/'..opt.dataset
-ds = Flickr8k(dataset_path):setup()
+--dataset_path = lfs.currentdir()..'/data/'..opt.dataset
+--ds = Flickr8k(dataset_path):setup()
+--ds = Flickr8k():setup()
+--ds = dp['Mnist']()
+ds = dp['Flickr8k']()
 print (ds:imageSize('c'))
 
 ------------------------------------------
