@@ -1,15 +1,24 @@
-require "misc.loadData"
-require "misc.utils"
+--require('mobdebug').start()
+require 'misc/utils'
+require 'datasets.Flickr8k'
+require 'lfs'
+require 'torch'
+--
+cmd = torch.CmdLine()
+cmd:text()
+cmd:text('Options')
+cmd:option('-dataset', 'flickr8k', 'which dataset to train. flickr8k, flickr30k or mscoco')
 
------------------------------------------------------------------------------
--- Load Dataset, pre-prepared into h5py file
------------------------------------------------------------------------------
-h5_datapath = "./data/flickr8k/data.h5"
+local opt = cmd:parse(arg)
 
-local utils = require "misc.utils"
--- check if file exists
-if utils.file_exists(h5_datapath) then print ("true") else print ("faluse") end
--- load h5_data
--- data formats:
+dataset_path = lfs.currentdir()..'/data/'..opt.dataset
 
-h5_data = loadData(h5_datapath)
+print (dataset_path) 
+
+ds = Flickr8k(dataset_path):setup()
+
+print (ds)
+
+train = ds:get('train', 'inputs', 'bchw')
+
+print (#train)

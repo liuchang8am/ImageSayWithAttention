@@ -13,7 +13,7 @@ require 'dp'
 --- Should the sentence be dealt as multi-labels? Or ?
 ---------------------------------------------------------------------------
 
-local Flickr8k = torch.class("Flickr8k") -- customize class
+local Flickr8k, parent = torch.class("Flickr8k", "dp.DataSource") -- customize class
 --local utils_path = lfs.currentdir()..'/misc/utils.lua;'
 --package.path = '../misc/utils.lua;' .. package.path
 --package.path = utils_path..package.path
@@ -27,6 +27,7 @@ local Flickr8k = torch.class("Flickr8k") -- customize class
 ---	3. Arrange those info into a flickr8k table
 -----------------------------------------------------------
 function Flickr8k:__init(datapath)
+    parent.__init(self)
     -- 1. load the images, and the caption sentences
     -- pre-prepared with neuraltalk2/prepo.py, to create lua-readable data
 
@@ -37,7 +38,8 @@ function Flickr8k:__init(datapath)
     --	-> 'label_start_ix': again, 1-indexed numbers, 1-100, no idea what it is for 
     --	-> 'labels': (100, 16), 100 images; 16 as the longest sentence;
     --	->	    each containes a sequence of numbers, representing the numbered word 
-    -- #TODO: add assertion to make sure file exists
+
+    -- #TODO(Completed): add assertion to make sure file exists
 
     print ('Preparing Flickr8k into dp.DataSource format ...')
 
@@ -57,7 +59,9 @@ function Flickr8k:__init(datapath)
     --	     -> 'file_path': string, the filename, eg. '1597557856_30640e0b43.jpg'
     --	     -> 'split': string, 'train', 'validation', or 'test' split
     --	-> 'ix_to_word': the mapping from number to word, eg. 101 is 'cigarettes' 
-    -- #TODO: add assertion to make sure file exists
+
+    -- #TODO(Completed): add assertion to make sure file exists --- Completed
+
     print ('Loading flickr8k data.json file ...')
     json_file_path = datapath..'/'..'data.json'
     if utils.exists(json_file_path) then print ('Done.') else return end -- check whether file exists
@@ -226,7 +230,7 @@ end
 ---	2. the file_path and the split 
 ---	3. ix_to_word codes of the sentences
 ---	4. the decoded sentence 
---- #TODO: how to close the displayed image normally?
+--- #TODO: how to close the image.display() normally?
 ----------------------------------------------------
 function Flickr8k:showImgInfo(id)
     print ('---------------------------------------------------------------')
