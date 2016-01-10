@@ -4,3 +4,5 @@
 *.buildpath
 data/coco/
 .idea
+*.swp
+*.tmp

@@ -1,4 +1,4 @@
-require('mobdebug').start()
+--require('mobdebug').start()
 require 'dp'
 require 'rnn'
 require 'image'
@@ -93,7 +93,7 @@ glimpseSensor:add(nn[opt.transfer]())
 glimpse = nn.Sequential()
 glimpse:add(nn.ConcatTable():add(locationSensor):add(glimpseSensor))
 glimpse:add(nn.JoinTable(1,1))
-glimpseSensor:add(nn.Linear(opt.locatorHiddenSize+opt.glimpseHiddenSize, opt.imageHiddenSize))
+glimpse:add(nn.Linear(opt.locatorHiddenSize+opt.glimpseHiddenSize, opt.imageHiddenSize))
 glimpse:add(nn[opt.transfer]())
 glimpse:add(nn.Linear(opt.imageHiddenSize, opt.hiddenSize))
 
