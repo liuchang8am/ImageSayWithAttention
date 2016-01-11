@@ -112,7 +112,7 @@ assert(locator:get(3).stochastic == opt.stochastic, "Please update the dpnn pack
 locator:add(nn.HardTanh()) -- bounds sample between -1 and 1
 locator:add(nn.MulConstant(opt.unitPixels*2/ds:imageSize("h")))
 
-attention = nn.RecurrentAttention(rnn, locator, opt.rho, {opt.hiddenSize})
+attention = nn.RecurrentCaption(rnn, locator, opt.rho, {opt.hiddenSize})
 
 -- model is a reinforcement learning agent
 agent = nn.Sequential()
@@ -120,8 +120,9 @@ agent:add(nn.Convert(ds:ioShapes(), 'bchw'))
 agent:add(attention)
 
 -- classifier :
-agent:add(nn.SelectTable(-1))
+--agent:add(nn.SelectTable(-1)) -- since we need to use outputs of every timestep in RNN, rather than only use the output of the last timestep, thus omit the SelectTable(-1) operation
 agent:add(nn.Linear(opt.hiddenSize, #ds:classes()))
+--agent:add(nn.Linear(opt.hiddenSize, 10))
 agent:add(nn.LogSoftMax())
 
 -- add the baseline reward predictor
@@ -143,7 +144,7 @@ end
 --[[Propagators]]--
 opt.decayFactor = (opt.minLR - opt.learningRate)/opt.saturateEpoch
 
-train = dp.Optimizer{
+train = dp.OptimizerCaptioner{
    loss = nn.ParallelCriterion(true)
       :add(nn.ModuleCriterion(nn.ClassNLLCriterion(), nil, nn.Convert())) -- BACKPROP
       :add(nn.ModuleCriterion(nn.VRClassReward(agent, opt.rewardScale), nil, nn.Convert())) -- REINFORCE
