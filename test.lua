@@ -122,7 +122,6 @@ agent:add(attention)
 -- classifier :
 --agent:add(nn.SelectTable(-1)) -- since we need to use outputs of every timestep in RNN, rather than only use the output of the last timestep, thus omit the SelectTable(-1) operation
 agent:add(nn.Linear(opt.hiddenSize, #ds:classes()))
---agent:add(nn.Linear(opt.hiddenSize, 10))
 agent:add(nn.LogSoftMax())
 
 -- add the baseline reward predictor
