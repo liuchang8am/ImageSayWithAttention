@@ -17,8 +17,8 @@ cmd:option('--momentum', 0.9, 'momentum')
 cmd:option('--maxOutNorm', -1, 'max norm each layers output neuron weights')
 cmd:option('--cutoffNorm', -1, 'max l2-norm of contatenation of all gradParam tensors')
 cmd:option('--batchSize', 1, 'number of examples per batch')
-cmd:option('--cuda', false, 'use CUDA')
-cmd:option('--useDevice', 1, 'sets the device (GPU) to use')
+cmd:option('--cuda', true, 'use CUDA')
+cmd:option('--useDevice', 2, 'sets the device (GPU) to use')
 cmd:option('--maxEpoch', 5, 'maximum number of epochs to run')
 cmd:option('--maxTries', 2, 'maximum number of epochs to try to find a better local minima for early-stopping')
 cmd:option('--transfer', 'ReLU', 'activation function')
@@ -112,7 +112,7 @@ assert(locator:get(3).stochastic == opt.stochastic, "Please update the dpnn pack
 locator:add(nn.HardTanh()) -- bounds sample between -1 and 1
 locator:add(nn.MulConstant(opt.unitPixels*2/ds:imageSize("h")))
 
-attention = nn.RecurrentCaption(rnn, locator, opt.rho, {opt.hiddenSize})
+attention = nn.RecurrentCaption(rnn, locator, opt.rho, {opt.hiddenSize}, opt.cuda)
 
 -- model is a reinforcement learning agent
 agent = nn.Sequential()
@@ -174,19 +174,22 @@ train = dp.OptimizerCaptioner{
    sampler = dp.ShuffleSampler{
       epoch_size = opt.trainEpochSize, batch_size = opt.batchSize
    },
-   progress = opt.progress
+   progress = opt.progress,
+   _cuda = opt.cuda
 }
 
 
 valid = dp.Evaluator{
    feedback = dp.Confusion{output_module=nn.SelectTable(1)},  
    sampler = dp.Sampler{epoch_size = opt.validEpochSize, batch_size = opt.batchSize},
-   progress = opt.progress
+   progress = opt.progress,
+   _cuda = opt.cuda
 }
 if not opt.noTest then
    tester = dp.Evaluator{
       feedback = dp.Confusion{output_module=nn.SelectTable(1)},  
-      sampler = dp.Sampler{batch_size = opt.batchSize} 
+      sampler = dp.Sampler{batch_size = opt.batchSize},
+      _cuda = opt.cuda
    }
 end
 
