@@ -17,7 +17,7 @@ cmd:option('--momentum', 0.9, 'momentum')
 cmd:option('--maxOutNorm', -1, 'max norm each layers output neuron weights')
 cmd:option('--cutoffNorm', -1, 'max l2-norm of contatenation of all gradParam tensors')
 cmd:option('--batchSize', 1, 'number of examples per batch')
-cmd:option('--cuda', true, 'use CUDA')
+cmd:option('--cuda', false, 'use CUDA')
 cmd:option('--useDevice', 2, 'sets the device (GPU) to use')
 cmd:option('--maxEpoch', 5, 'maximum number of epochs to run')
 cmd:option('--maxTries', 2, 'maximum number of epochs to try to find a better local minima for early-stopping')
@@ -214,16 +214,13 @@ xp = dp.Experiment{
 
 --[[GPU or CPU]]--
 if opt.cuda then
-   require 'cutorch'
-   require 'cunn'
-   cutorch.setDevice(opt.useDevice)
    xp:cuda()
 end
 
 xp:verbose(not opt.silent)
 if not opt.silent then
    print"Agent :"
-   print(agent)
+   --print(agent)
 end
 
 xp.opt = opt
