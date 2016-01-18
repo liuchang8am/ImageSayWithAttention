@@ -43,7 +43,7 @@ cmd:option('--overwrite', false, 'overwrite checkpoint')
 
 ---  model info  ---
 cmd:option('--glimpseHiddenSize', 128, 'size of glimpse hidden layer')
-cmd:option('--glimpsePatchSize', 8, 'size of glimpse patch at highest res (height = width)')
+cmd:option('--glimpsePatchSize', 64, 'size of glimpse patch at highest res (height = width)')
 cmd:option('--glimpseScale', 2, 'scale of successive patches w.r.t. original input image')
 cmd:option('--glimpseDepth', 1, 'number of concatenated downscaled patches')
 cmd:option('--locatorHiddenSize', 128, 'size of locator hidden layer')
@@ -62,7 +62,6 @@ local opt = cmd:parse(arg)
 -------------------------------------------
 --- setup your dataset
 -------------------------------------------
---ds = dp['Mnist']()
 ds = dp['Flickr8k']()
 
 ------------------------------------------
@@ -108,7 +107,6 @@ locator = nn.Sequential()
 locator:add(nn.Linear(opt.hiddenSize,2))
 locator:add(nn.HardTanh())
 locator:add(nn.ReinforceNormal(2*opt.locatorStd, opt.stochastic)) -- sample from normal, uses REINFORCE learning rule
-assert(locator:get(3).stochastic == opt.stochastic, "Please update the dpnn package : luarocks install dpnn")
 locator:add(nn.HardTanh()) -- bounds sample between -1 and 1
 locator:add(nn.MulConstant(opt.unitPixels*2/ds:imageSize("h")))
 
