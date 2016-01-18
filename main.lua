@@ -174,7 +174,7 @@ train = dp.OptimizerCaptioner{
       model:zeroGradParameters() -- affects gradParams 
    end,
    --feedback = dp.Confusion{output_module=nn.SelectTable(1)},  -- we don't want use confusion matrix, but perplexity instead
-   feedback = dp.Perplexity(),
+   feedback = dp.PerplexityCaptioner(),
    sampler = dp.ShuffleSampler{
       epoch_size = opt.trainEpochSize, batch_size = opt.batchSize
    },
@@ -185,7 +185,7 @@ train = dp.OptimizerCaptioner{
 
 valid = dp.EvaluatorCpationer{
    --feedback = dp.Confusion{output_module=nn.SelectTable(1)},  --same as train
-   feedback = dp.Perplexity(),
+   feedback = dp.PerplexityCaptioner(),
    sampler = dp.Sampler{epoch_size = opt.validEpochSize, batch_size = opt.batchSize},
    progress = opt.progress,
    _cuda = opt.cuda
@@ -193,7 +193,7 @@ valid = dp.EvaluatorCpationer{
 if not opt.noTest then
    tester = dp.EvaluatorCpationer{
       --feedback = dp.Confusion{output_module=nn.SelectTable(1)},  
-      feedback = dp.Perplexity(),
+      feedback = dp.PerplexityCaptioner(),
       sampler = dp.Sampler{batch_size = opt.batchSize},
       _cuda = opt.cuda
    }
@@ -206,11 +206,11 @@ xp = dp.Experiment{
    validator = valid,
    tester = tester,
    observer = {
-      ad,
-      dp.FileLogger(),
+      --ad,
+      --dp.FileLogger(),
       dp.EarlyStopper{
          max_epochs = opt.maxTries, 
-         error_report={'validator','feedback','confusion','accuracy'},
+         error_report={'validator','feedback','perplexity','ppl'},
          maximize = true
       }
    },
