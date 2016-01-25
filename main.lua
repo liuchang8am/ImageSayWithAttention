@@ -173,6 +173,7 @@ train = dp.OptimizerCaptioner{
       epoch_size = opt.trainEpochSize, batch_size = opt.batchSize
    },
    progress = opt.progress,
+   _cuda = opt.cuda
 }
 
 
@@ -181,12 +182,14 @@ valid = dp.EvaluatorCaptioner{
    feedback = dp.PerplexityCaptioner(),
    sampler = dp.Sampler{epoch_size = opt.validEpochSize, batch_size = opt.batchSize},
    progress = opt.progress,
+   _cuda = opt.cuda
 }
 if not opt.noTest then
    tester = dp.EvaluatorCaptioner{
       --feedback = dp.Confusion{output_module=nn.SelectTable(1)},  
       feedback = dp.PerplexityCaptioner(),
       sampler = dp.Sampler{batch_size = opt.batchSize},
+      _cuda = opt.cuda
    }
 end
 
