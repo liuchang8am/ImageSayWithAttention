@@ -1,4 +1,4 @@
---require('mobdebug').start()
+require('mobdebug').start()
 require 'dp'
 require 'rnn'
 require 'image'
@@ -16,11 +16,11 @@ cmd:option('--saturateEpoch', 800, 'epoch at which linear decayed LR will reach 
 cmd:option('--momentum', 0.9, 'momentum')
 cmd:option('--maxOutNorm', -1, 'max norm each layers output neuron weights')
 cmd:option('--cutoffNorm', -1, 'max l2-norm of contatenation of all gradParam tensors')
-cmd:option('--batchSize', 1, 'number of examples per batch')
+cmd:option('--batchSize', 10, 'number of examples per batch')
 cmd:option('--cuda', false, 'use CUDA')
 cmd:option('--useDevice', 1, 'sets the device (GPU) to use')
 cmd:option('--maxEpoch', 5000, 'maximum number of epochs to run')
-cmd:option('--maxTries', 2, 'maximum number of epochs to try to find a better local minima for early-stopping')
+cmd:option('--maxTries', 20, 'maximum number of epochs to try to find a better local minima for early-stopping')
 cmd:option('--transfer', 'ReLU', 'activation function')
 cmd:option('--uniform', 0.1, 'initialize parameters using uniform distribution between -uniform and uniform. -1 means default initialization')
 cmd:option('--xpPath', '', 'path to a previously saved model')
@@ -63,11 +63,6 @@ local opt = cmd:parse(arg)
 --- setup your dataset
 -------------------------------------------
 ds = dp['Flickr8k']()
-
-------------------------------------------
-train = ds:get('train', 'inputs', 'bchw')
---sample_image = train[1]
---image.display(sample_image)
 
 ------------------------------------------
 ---------------   Model   ----------------
@@ -207,7 +202,7 @@ xp = dp.Experiment{
       dp.EarlyStopper{
          max_epochs = opt.maxTries, 
          error_report={'validator','feedback','perplexity','ppl'},
-         maximize = true
+         maximize = false
       }
    },
    random_seed = os.time(),
