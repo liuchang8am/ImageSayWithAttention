@@ -1,4 +1,4 @@
-require('mobdebug').start()
+--require('mobdebug').start()
 require 'dp'
 require 'rnn'
 require 'image'
@@ -18,7 +18,7 @@ cmd:option('--maxOutNorm', -1, 'max norm each layers output neuron weights')
 cmd:option('--cutoffNorm', -1, 'max l2-norm of contatenation of all gradParam tensors')
 cmd:option('--batchSize', 10, 'number of examples per batch')
 cmd:option('--cuda', false, 'use CUDA')
-cmd:option('--useDevice', 1, 'sets the device (GPU) to use')
+cmd:option('--gpuid', 1, 'sets the device (GPU) to use')
 cmd:option('--maxEpoch', 5000, 'maximum number of epochs to run')
 cmd:option('--maxTries', 20, 'maximum number of epochs to try to find a better local minima for early-stopping')
 cmd:option('--transfer', 'ReLU', 'activation function')
@@ -216,7 +216,7 @@ xp = dp.Experiment{
 if opt.cuda then
    require "cutorch"
    require "cunn"
-   cutorch.setDevice(opt.useDevice) 
+   cutorch.setDevice(opt.gpuid) 
    xp:cuda()
 end
 
