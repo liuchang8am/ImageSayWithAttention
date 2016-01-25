@@ -145,10 +145,10 @@ end
 --[[Propagators]]--
 opt.decayFactor = (opt.minLR - opt.learningRate)/opt.saturateEpoch
 
-train = dp.Optimizer{
+train = dp.OptimizerCaptioner{
    loss = nn.ParallelCriterion(true)
       :add(nn.ModuleCriterion(nn.SequencerCriterion(nn.ClassNLLCriterion())), nil, nn.Sequencer(nn.Convert()))
-      :add(nn.ModuleCriterion(nn.VRClassReward(agent, opt.rewardScale)), nil, nn.Sequencer(nn.Convert()))
+      :add(nn.ModuleCriterion(nn.SequencerCriterion(nn.VRClassRewardCaptioner(agent, opt.rewardScale))), nil, nn.Sequencer(nn.Convert()))
    ,
    epoch_callback = function(model, report) -- called every epoch
       if report.epoch > 0 then
@@ -181,14 +181,14 @@ train = dp.Optimizer{
 }
 
 
-valid = dp.Evaluator{
+valid = dp.EvaluatorCaptioner{
    --feedback = dp.Confusion{output_module=nn.SelectTable(1)},  --same as train
    feedback = dp.PerplexityCaptioner(),
    sampler = dp.Sampler{epoch_size = opt.validEpochSize, batch_size = opt.batchSize},
    progress = opt.progress,
 }
 if not opt.noTest then
-   tester = dp.Evaluator{
+   tester = dp.EvaluatorCaptioner{
       --feedback = dp.Confusion{output_module=nn.SelectTable(1)},  
       feedback = dp.PerplexityCaptioner(),
       sampler = dp.Sampler{batch_size = opt.batchSize},
