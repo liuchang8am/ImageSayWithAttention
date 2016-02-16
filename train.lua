@@ -2,6 +2,13 @@ require('mobdebug').start()
 require 'dp'
 require 'rnn'
 require 'image'
+require 'datasets/flickr8k'
+require 'lib/propagatorcaptioner.lua'
+require 'lib/evaluatorcaptioner'
+require 'lib/optimizercaptioner'
+require 'lib/perplexitycaptioner'
+require 'lib/VRClassRewardCaptioner'
+
 -------------------------------------------
 --- command line parameters
 -------------------------------------------
