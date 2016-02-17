@@ -95,8 +95,8 @@ def build_vocab(imgs, params):
   return vocab
 
 def assign_splits(imgs, params):
-  num_val = params['num_val']
-  num_test = params['num_test']
+  #num_val = params['num_val']
+  #num_test = params['num_test']
 
   for i,img in enumerate(imgs):
       if i < num_val:
@@ -167,7 +167,7 @@ def main(params):
   wtoi = {w:i+1 for i,w in enumerate(vocab)} # inverse table
 
   # assign the splits
-  assign_splits(imgs, params)
+  # assign_splits(imgs, params)  #split already assigned in prepare_for_prepo.py
   
   # encode captions in large arrays, ready to ship to hdf5 file
   L, label_start_ix, label_end_ix, label_length = encode_captions(imgs, params, wtoi)
@@ -223,7 +223,7 @@ if __name__ == "__main__":
 
   # input json
   parser.add_argument('--input_json', required=True, help='input json file to process into hdf5')
-  parser.add_argument('--num_val', required=True, type=int, help='number of images to assign to validation data (for CV etc)')
+  #parser.add_argument('--num_val', required=True, type=int, help='number of images to assign to validation data (for CV etc)')
   parser.add_argument('--output_json', default='data.json', help='output json file')
   parser.add_argument('--output_h5', default='data.h5', help='output h5 file')
   
@@ -231,7 +231,7 @@ if __name__ == "__main__":
   parser.add_argument('--max_length', default=16, type=int, help='max length of a caption, in number of words. captions longer than this get clipped.')
   parser.add_argument('--images_root', default='', help='root location in which images are stored, to be prepended to file_path in input json')
   parser.add_argument('--word_count_threshold', default=5, type=int, help='only words that occur more than this number of times will be put in vocab')
-  parser.add_argument('--num_test', default=0, type=int, help='number of test images (to withold until very very end)')
+  #parser.add_argument('--num_test', default=0, type=int, help='number of test images (to withold until very very end)')
 
   args = parser.parse_args()
   params = vars(args) # convert to ordinary dict

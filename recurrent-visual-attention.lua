@@ -1,10 +1,11 @@
---require("mobdebug").start()
+--require('mobdebug').start()
 require 'dp'
 require 'rnn'
 
 -- References :
 -- A. http://papers.nips.cc/paper/5542-recurrent-models-of-visual-attention.pdf
 -- B. http://incompleteideas.net/sutton/williams-92.pdf
+
 
 version = 12
 
@@ -21,7 +22,7 @@ cmd:option('--saturateEpoch', 800, 'epoch at which linear decayed LR will reach 
 cmd:option('--momentum', 0.9, 'momentum')
 cmd:option('--maxOutNorm', -1, 'max norm each layers output neuron weights')
 cmd:option('--cutoffNorm', -1, 'max l2-norm of contatenation of all gradParam tensors')
-cmd:option('--batchSize', 10, 'number of examples per batch')
+cmd:option('--batchSize', 1, 'number of examples per batch')
 cmd:option('--cuda', false, 'use CUDA')
 cmd:option('--useDevice', 1, 'sets the device (GPU) to use')
 cmd:option('--maxEpoch', 2000, 'maximum number of epochs to run')
@@ -47,14 +48,15 @@ cmd:option('--locatorHiddenSize', 128, 'size of locator hidden layer')
 cmd:option('--imageHiddenSize', 256, 'size of hidden layer combining glimpse and locator hiddens')
 
 --[[ recurrent layer ]]--
-cmd:option('--rho', 16, 'back-propagate through time (BPTT) for rho time-steps')
+cmd:option('--rho', 7, 'back-propagate through time (BPTT) for rho time-steps')
 cmd:option('--hiddenSize', 256, 'number of hidden units used in Simple RNN.')
 cmd:option('--dropout', false, 'apply dropout on hidden neurons')
+cmd:option('--FastLSTM', false, 'use LSTM instead of linear layer')
 
 --[[ data ]]--
 cmd:option('--dataset', 'Mnist', 'which dataset to use : Mnist | TranslattedMnist | etc')
 cmd:option('--trainEpochSize', -1, 'number of train examples seen between each epoch')
-cmd:option('--validEpochSize', -1, 'number of valid examples used for early stopping and cross-validation') 
+cmd:option('--validEpochSize', -1, 'number of valid examples used for early stopping and cross-validation')
 cmd:option('--noTest', false, 'dont propagate through the test set')
 cmd:option('--overwrite', false, 'overwrite checkpoint')
 
@@ -73,7 +75,7 @@ end
 if opt.dataset == 'TranslatedMnist' then
    ds = torch.checkpoint(
       paths.concat(dp.DATA_DIR, 'checkpoint/dp.TranslatedMnist.t7'),
-      function() return dp[opt.dataset]() end, 
+      function() return dp[opt.dataset]() end,
       opt.overwrite
    )
 else
@@ -100,7 +102,7 @@ end
 
 --[[Model]]--
 
--- glimpse network (rnn input layer) 
+-- glimpse network (rnn input layer)
 locationSensor = nn.Sequential()
 locationSensor:add(nn.SelectTable(2))
 locationSensor:add(nn.Linear(2, opt.locatorHiddenSize))
@@ -120,7 +122,12 @@ glimpse:add(nn[opt.transfer]())
 glimpse:add(nn.Linear(opt.imageHiddenSize, opt.hiddenSize))
 
 -- rnn recurrent layer
-recurrent = nn.Linear(opt.hiddenSize, opt.hiddenSize)
+if opt.FastLSTM then
+  recurrent = nn.FastLSTM(opt.hiddenSize, opt.hiddenSize)
+else
+  recurrent = nn.Linear(opt.hiddenSize, opt.hiddenSize)
+end
+
 
 -- recurrent neural network
 rnn = nn.Recurrent(opt.hiddenSize, glimpse, recurrent, nn[opt.transfer](), 99999)
@@ -182,7 +189,7 @@ train = dp.Optimizer{
          end
       end
    end,
-   callback = function(model, report)       
+   callback = function(model, report)
       if opt.cutoffNorm > 0 then
          local norm = model:gradParamClip(opt.cutoffNorm) -- affects gradParams
          opt.meanNorm = opt.meanNorm and (opt.meanNorm*0.9 + norm*0.1) or norm
@@ -193,9 +200,9 @@ train = dp.Optimizer{
       model:updateGradParameters(opt.momentum) -- affects gradParams
       model:updateParameters(opt.learningRate) -- affects params
       model:maxParamNorm(opt.maxOutNorm) -- affects params
-      model:zeroGradParameters() -- affects gradParams 
+      model:zeroGradParameters() -- affects gradParams
    end,
-   feedback = dp.Confusion{output_module=nn.SelectTable(1)},  
+   feedback = dp.Confusion{output_module=nn.SelectTable(1)},
    sampler = dp.ShuffleSampler{
       epoch_size = opt.trainEpochSize, batch_size = opt.batchSize
    },
@@ -204,15 +211,14 @@ train = dp.Optimizer{
 
 
 valid = dp.Evaluator{
-   feedback = dp.Confusion{output_module=nn.SelectTable(1)},  
+   feedback = dp.Confusion{output_module=nn.SelectTable(1)},
    sampler = dp.Sampler{epoch_size = opt.validEpochSize, batch_size = opt.batchSize},
-   progress = opt.progress,
-   
+   progress = opt.progress
 }
 if not opt.noTest then
    tester = dp.Evaluator{
-      feedback = dp.Confusion{output_module=nn.SelectTable(1)},  
-      sampler = dp.Sampler{batch_size = opt.batchSize} 
+      feedback = dp.Confusion{output_module=nn.SelectTable(1)},
+      sampler = dp.Sampler{batch_size = opt.batchSize}
    }
 end
 
@@ -226,7 +232,7 @@ xp = dp.Experiment{
       ad,
       dp.FileLogger(),
       dp.EarlyStopper{
-         max_epochs = opt.maxTries, 
+         max_epochs = opt.maxTries,
          error_report={'validator','feedback','confusion','accuracy'},
          maximize = true
       }

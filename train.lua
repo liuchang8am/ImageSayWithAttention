@@ -2,6 +2,13 @@ require('mobdebug').start()
 require 'dp'
 require 'rnn'
 require 'image'
+require 'datasets/flickr8k'
+require 'lib/propagatorcaptioner.lua'
+require 'lib/evaluatorcaptioner'
+require 'lib/optimizercaptioner'
+require 'lib/perplexitycaptioner'
+require 'lib/VRClassRewardCaptioner'
+
 -------------------------------------------
 --- command line parameters
 -------------------------------------------
@@ -16,7 +23,7 @@ cmd:option('--saturateEpoch', 800, 'epoch at which linear decayed LR will reach 
 cmd:option('--momentum', 0.9, 'momentum')
 cmd:option('--maxOutNorm', -1, 'max norm each layers output neuron weights')
 cmd:option('--cutoffNorm', -1, 'max l2-norm of contatenation of all gradParam tensors')
-cmd:option('--batchSize', 10, 'number of examples per batch')
+cmd:option('--batchSize', 1, 'number of examples per batch')
 cmd:option('--cuda', false, 'use CUDA')
 cmd:option('--gpuid', 1, 'sets the device (GPU) to use')
 cmd:option('--maxEpoch', 5000, 'maximum number of epochs to run')
@@ -33,7 +40,6 @@ cmd:option('--unitPixels', 13, "the locator unit (1,1) maps to pixels (13,13), o
 cmd:option('--locatorStd', 0.11, 'stdev of gaussian location sampler (between 0 and 1) (low values may cause NaNs)')
 cmd:option('--stochastic', false, 'Reinforce modules forward inputs stochastically during evaluation')
 
-
 ---  dataset info  ---
 cmd:option('-dataset', 'flickr8k', 'which dataset to train. flickr8k, flickr30k or mscoco')
 cmd:option('--trainEpochSize', -1, 'number of train examples seen between each epoch')
@@ -43,9 +49,9 @@ cmd:option('--overwrite', false, 'overwrite checkpoint')
 
 ---  model info  ---
 cmd:option('--glimpseHiddenSize', 128, 'size of glimpse hidden layer')
-cmd:option('--glimpsePatchSize', 64, 'size of glimpse patch at highest res (height = width)')
+cmd:option('--glimpsePatchSize', 32, 'size of glimpse patch at highest res (height = width)')
 cmd:option('--glimpseScale', 2, 'scale of successive patches w.r.t. original input image')
-cmd:option('--glimpseDepth', 1, 'number of concatenated downscaled patches')
+cmd:option('--glimpseDepth', 3, 'number of concatenated downscaled patches')
 cmd:option('--locatorHiddenSize', 128, 'size of locator hidden layer')
 cmd:option('--imageHiddenSize', 256, 'size of hidden layer combining glimpse and locator hiddens')
 
@@ -93,6 +99,7 @@ glimpse:add(nn.Linear(opt.imageHiddenSize, opt.hiddenSize))
 
 --- 4. recurrent layer
 recurrent = nn.Linear(opt.hiddenSize, opt.hiddenSize)
+--recurrent = nn.FastLSTM(opt.hiddenSize, opt.hiddenSize)
 
 --- 5. recurrent neural network
 rnn = nn.Recurrent(opt.hiddenSize, glimpse, recurrent, nn[opt.transfer](), 99999)
