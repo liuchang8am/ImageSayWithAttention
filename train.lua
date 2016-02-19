@@ -17,7 +17,7 @@ cmd:text()
 cmd:text('Options')
 
 --- training options ---
-cmd:option('--learningRate', 0.0001, 'learning rate at t=0')
+cmd:option('--learningRate', 0.001, 'learning rate at t=0')
 cmd:option('--minLR', 0.00001, 'minimum learning rate')
 cmd:option('--saturateEpoch', 800, 'epoch at which linear decayed LR will reach minLR')
 cmd:option('--momentum', 0.9, 'momentum')
@@ -86,6 +86,7 @@ locationSensor:add(nn[opt.transfer]())
 glimpseSensor = nn.Sequential()
 glimpseSensor:add(nn.DontCast(nn.SpatialGlimpse(opt.glimpsePatchSize, opt.glimpseDepth, opt.glimpseScale):float(), true))
 glimpseSensor:add(nn.Collapse(3))
+--glimpseSensor:add(nn.Debug())
 glimpseSensor:add(nn.Linear(ds:imageSize('c')*opt.glimpsePatchSize^2*opt.glimpseDepth, opt.glimpseHiddenSize))
 glimpseSensor:add(nn[opt.transfer]())
 
@@ -123,7 +124,7 @@ agent:add(attention)
 --agent:add(nn.SelectTable(-1)) -- since we need to use outputs of every timestep in RNN, rather than only use the output of the last timestep, thus omit the SelectTable(-1) operation
 --agent:add(nn.Linear(opt.hiddenSize, #ds:classes()))
 --agent:add(nn.LogSoftMax())
--- #TODO: checkout nn.Sequencser usage
+-- #TODO[Done]: checkout nn.Sequencser usage
 agent:add(nn.Sequencer(nn.Linear(opt.hiddenSize, #ds:classes())))
 agent:add(nn.Sequencer(nn.LogSoftMax())) 
 
@@ -205,12 +206,12 @@ xp = dp.Experiment{
    validator = valid,
    tester = tester,
    observer = {
-      --ad,
-      --dp.FileLogger(),
+      ad,
+      dp.FileLogger(),
       dp.EarlyStopper{
          max_epochs = opt.maxTries, 
          error_report={'validator','feedback','perplexity','ppl'},
-         maximize = false
+         --maximize = false
       }
    },
    random_seed = os.time(),
