@@ -1,13 +1,13 @@
-require('mobdebug').start()
+--require('mobdebug').start()
 require 'dp'
 require 'rnn'
 require 'image'
-require 'datasets/flickr8k'
-require 'lib/propagatorcaptioner.lua'
-require 'lib/evaluatorcaptioner'
-require 'lib/optimizercaptioner'
-require 'lib/perplexitycaptioner'
-require 'lib/VRClassRewardCaptioner'
+--require 'datasets/flickr8k'
+--requikwardre 'lib/propagatorcaptioner.lua'
+--require 'lib/evaluatorcaptioner'
+--require 'lib/optimizercaptioner'
+--require 'lib/perplexitycaptioner'
+--require 'lib/VRClassRewardCaptioner'
 
 -------------------------------------------
 --- command line parameters
@@ -17,7 +17,7 @@ cmd:text()
 cmd:text('Options')
 
 --- training options ---
-cmd:option('--learningRate', 0.001, 'learning rate at t=0')
+cmd:option('--learningRate', 0.0001, 'learning rate at t=0')
 cmd:option('--minLR', 0.00001, 'minimum learning rate')
 cmd:option('--saturateEpoch', 800, 'epoch at which linear decayed LR will reach minLR')
 cmd:option('--momentum', 0.9, 'momentum')
@@ -35,8 +35,8 @@ cmd:option('--progress', false, 'print progress bar')
 cmd:option('--silent', false, 'dont print anything to stdout')
 
 --- reinforce ---
-cmd:option('--rewardScale', 1, "scale of positive reward (negative is 0)")
-cmd:option('--unitPixels', 13, "the locator unit (1,1) maps to pixels (13,13), or (-1,-1) maps to (-13,-13)")
+cmd:option('--rewardScale', 0, "scale of positive reward (negative is 0)")
+cmd:option('--unitPixels', 127, "the locator unit (1,1) maps to pixels (13,13), or (-1,-1) maps to (-13,-13)")
 cmd:option('--locatorStd', 0.11, 'stdev of gaussian location sampler (between 0 and 1) (low values may cause NaNs)')
 cmd:option('--stochastic', false, 'Reinforce modules forward inputs stochastically during evaluation')
 
@@ -49,7 +49,7 @@ cmd:option('--overwrite', false, 'overwrite checkpoint')
 
 ---  model info  ---
 cmd:option('--glimpseHiddenSize', 128, 'size of glimpse hidden layer')
-cmd:option('--glimpsePatchSize', 32, 'size of glimpse patch at highest res (height = width)')
+cmd:option('--glimpsePatchSize', 8, 'size of glimpse patch at highest res (height = width)')
 cmd:option('--glimpseScale', 2, 'scale of successive patches w.r.t. original input image')
 cmd:option('--glimpseDepth', 3, 'number of concatenated downscaled patches')
 cmd:option('--locatorHiddenSize', 128, 'size of locator hidden layer')
@@ -59,7 +59,7 @@ cmd:option('--imageHiddenSize', 256, 'size of hidden layer combining glimpse and
 cmd:option('--transfer', 'ReLU', 'activation function')
 
 -- recurrent layer
-cmd:option('--rho',16)
+cmd:option('--rho',17)
 cmd:option('--hiddenSize', 256)
 cmd:option('--dropout', false, 'apply dropout on hidden neurons')
 
@@ -150,7 +150,8 @@ opt.decayFactor = (opt.minLR - opt.learningRate)/opt.saturateEpoch
 train = dp.OptimizerCaptioner{
    loss = nn.ParallelCriterion(true)
       :add(nn.ModuleCriterion(nn.SequencerCriterion(nn.ClassNLLCriterion())), nil, nn.Sequencer(nn.Convert()))
-      :add(nn.ModuleCriterion(nn.SequencerCriterion(nn.VRClassRewardCaptioner(agent, opt.rewardScale))), nil, nn.Sequencer(nn.Convert()))
+      --:add(nn.ModuleCriterion(nn.SequencerCriterion(nn.VRClassRewardCaptioner(agent, opt.rewardScale))), nil, nn.Sequencer(nn.Convert()))
+      :add(nn.ModuleCriterion(nn.VRClassRewardCaptioner(agent, opt.rewardScale)), nil, nn.Convert())
    ,
    epoch_callback = function(model, report) -- called every epoch
       if report.epoch > 0 then
@@ -174,7 +175,6 @@ train = dp.OptimizerCaptioner{
       model:maxParamNorm(opt.maxOutNorm) -- affects params
       model:zeroGradParameters() -- affects gradParams 
    end,
-   --feedback = dp.Confusion{output_module=nn.SelectTable(1)},  -- we don't want use confusion matrix, but perplexity instead
    feedback = dp.PerplexityCaptioner(),
    sampler = dp.ShuffleSampler{
       epoch_size = opt.trainEpochSize, batch_size = opt.batchSize
@@ -185,7 +185,6 @@ train = dp.OptimizerCaptioner{
 
 
 valid = dp.EvaluatorCaptioner{
-   --feedback = dp.Confusion{output_module=nn.SelectTable(1)},  --same as train
    feedback = dp.PerplexityCaptioner(),
    sampler = dp.Sampler{epoch_size = opt.validEpochSize, batch_size = opt.batchSize},
    progress = opt.progress,
@@ -193,7 +192,6 @@ valid = dp.EvaluatorCaptioner{
 }
 if not opt.noTest then
    tester = dp.EvaluatorCaptioner{
-      --feedback = dp.Confusion{output_module=nn.SelectTable(1)},  
       feedback = dp.PerplexityCaptioner(),
       sampler = dp.Sampler{batch_size = opt.batchSize},
       _cuda = opt.cuda
