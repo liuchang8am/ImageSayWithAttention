@@ -15,11 +15,7 @@ Flickr8k._image_axes = 'bchw'
 Flickr8k._feature_size = 3 * 256 * 256
 
 function Flickr8k:__init(config)
-    print("entering __init()...")
     config = config or {}
-    
-    self.debug = true
-    
     assert(torch.type(config) == 'table' and not config[1],
         "Constructor requires key-value arguments")
     local args, load_all, input_preprocess, target_preprocess
@@ -124,14 +120,16 @@ function Flickr8k:setup()
     --1. read data file
     --print("Loading flickr8k data.h5 file ...")
     --local h5_filepath = self._data_path .. '/' .. 'data_t=5.h5'
+    
+    self.debug = true
 
     local h5_filepath
 
     if self.debug then
-      h5_filepath = self._data_path .. '/' .. 'debug100' .. '/' .. 'data_t=5.h5'
-      print ("Loading debug100")
+	h5_filepath = self._data_path .. '/' .. 'debug100' .. '/' .. 'data_t=5.h5'
+	print ("Loading debug_100")
     else
-        print("Loading flickr8k data_t=5.h5 file ...")
+	print("Loading flickr8k data_t=5.h5 file ...")
         h5_filepath = self._data_path .. '/' .. 'data_t=5.h5'
     end
 
@@ -148,8 +146,7 @@ function Flickr8k:setup()
     local json_filepath = self._data_path .. '/' .. 'data_t=5.json'
 
     if self.debug then
-        json_filepath = self._data_path .. '/' .. 'debug100' .. '/' .. 'data_t=5.json' --overwirte if debug
-        LC = "LC"
+	json_filepath = self._data_path .. '/' .. 'debug100' .. '/' .. 'data_t=5.json' --overwirte if debug
     end
 
     if self:exists(json_filepath) then print("Done.") else return end local json_file = io.open(json_filepath)
@@ -161,7 +158,17 @@ function Flickr8k:setup()
     json_file:close()
 
     self._flickr8k = { images, sentences, images_info, ix_to_word }
-    self.vocab = ix_to_word
+
+    self.vocab = self._flickr8k[4]
+
+    -- add the end token
+    self.vocab_size = self:len(self.vocab)+1 -- +1 for the '.' end token
+    self.vocab[tostring(self.vocab_size)] = '.' -- use '.' as the end token
+
+    -- add the special token to replace the null tokens
+    self.vocab_size = self.vocab_size + 1
+    self.vocab[tostring(self.vocab_size)] = '#' -- use '#' as the replacement for null token
+
     self._traindata = self:_setup_train()
     self._valdata = self:_setup_val()
     self._testdata = self:_setup_test()
@@ -266,15 +273,41 @@ function Flickr8k:createDataSet(inputs, targets, which_set)
     -- class 0 will have index 1, but why do this?
     -- #TODO: does this add(1) method influence futher index mapping?
     
-    targets:add(1)
+    --targets:add(1)
   
     -- construct inputs and targets dp.Views
     local input_v, target_v = dp.ImageView(), dp.ClassView()
     input_v:forward(self._image_axes, inputs)
+    
+    -- add the '.' end token for each sample
+    local end_token_column = torch.FloatTensor(targets:size()[1], 1):fill(self.vocab_size) --'#'
+    targets = torch.cat(targets,end_token_column) --add a column of '#' 
+
+    -- replace all the zeros with '#'
+    for sample = 1, targets:size()[1] do -- for each sample
+	for word = 1, targets[sample]:size()[1] do --for each word in the sample
+	    if targets[sample][word] == 0 then
+		targets[sample][word] = self.vocab_size
+	    end
+	end
+    end
+
+    -- replace the first '#' with '.'
+    for sample = 1, targets:size()[1] do -- for each sample
+	for word = 1, targets[sample]:size()[1] do --for each word in the sample
+	    if targets[sample][word] == self.vocab_size then
+		targets[sample][word] = self.vocab_size - 1 -- replace with '.'
+		break -- keep the remaining '#' s 
+	    end
+	end
+    end
+
+    --for i = 1, 17 do print (self.vocab[tostring(targets[15][i])]) end
+    --io.read(1)
+    --for i = 1, 17 do print (self.vocab[tostring(targets[10][i])]) end
+    --io.read(1)
+
     target_v:forward('bt', targets) -- Note: 'bt' is multi class
-    
-    for i = 1, 16 do print (self.vocab[tostring(targets[1][i])]) end
-    
     target_v:setClasses(self._classes)
     -- construct dataset
     local ds = dp.DataSet { inputs = input_v, targets = target_v, which_set = which_set }
@@ -282,24 +315,24 @@ function Flickr8k:createDataSet(inputs, targets, which_set)
     return ds
 end
 
-function Flickr8k:createClasses()
-    self._classes = {}
-    local len = self:len(self._flickr8k[4])
-    self._classes[1] = 0
-    for i = 1, len do
-        self._classes[i+1] = i
-    end
-    return self._classes
-end
-
 --function Flickr8k:createClasses()
 --    self._classes = {}
 --    local len = self:len(self._flickr8k[4])
+--    self._classes[1] = 0
 --    for i = 1, len do
---        self._classes[i] = i
+--        self._classes[i+1] = i
 --    end
 --    return self._classes
 --end
+
+function Flickr8k:createClasses()
+    self._classes = {}
+    local len = self:len(self._flickr8k[4])
+    for i = 1, len do
+        self._classes[i] = i
+    end
+    return self._classes
+end
 
 ---------------------
 --- Utils

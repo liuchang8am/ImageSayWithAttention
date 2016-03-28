@@ -2,12 +2,12 @@
 require 'dp'
 require 'rnn'
 require 'image'
---require 'datasets/flickr8k'
---requikwardre 'lib/propagatorcaptioner.lua'
---require 'lib/evaluatorcaptioner'
---require 'lib/optimizercaptioner'
---require 'lib/perplexitycaptioner'
---require 'lib/VRClassRewardCaptioner'
+require 'datasets/flickr8k'
+require 'lib/propagatorcaptioner.lua'
+require 'lib/evaluatorcaptioner'
+require 'lib/optimizercaptioner'
+require 'lib/perplexitycaptioner'
+require 'lib/VRClassRewardCaptioner'
 
 -------------------------------------------
 --- command line parameters
@@ -35,7 +35,7 @@ cmd:option('--progress', false, 'print progress bar')
 cmd:option('--silent', false, 'dont print anything to stdout')
 
 --- reinforce ---
-cmd:option('--rewardScale', 0, "scale of positive reward (negative is 0)")
+cmd:option('--rewardScale', 10, "scale of positive reward (negative is 0)")
 cmd:option('--unitPixels', 127, "the locator unit (1,1) maps to pixels (13,13), or (-1,-1) maps to (-13,-13)")
 cmd:option('--locatorStd', 0.11, 'stdev of gaussian location sampler (between 0 and 1) (low values may cause NaNs)')
 cmd:option('--stochastic', false, 'Reinforce modules forward inputs stochastically during evaluation')
@@ -62,7 +62,7 @@ cmd:option('--transfer', 'ReLU', 'activation function')
 cmd:option('--rho',17)
 cmd:option('--hiddenSize', 256)
 cmd:option('--dropout', false, 'apply dropout on hidden neurons')
-
+cmd:option('--FastLSTM', true, 'using LSTM instead of simple linear rnn unit')
 local opt = cmd:parse(arg)
 
 -------------------------------------------
@@ -99,8 +99,11 @@ glimpse:add(nn[opt.transfer]())
 glimpse:add(nn.Linear(opt.imageHiddenSize, opt.hiddenSize))
 
 --- 4. recurrent layer
-recurrent = nn.Linear(opt.hiddenSize, opt.hiddenSize)
---recurrent = nn.FastLSTM(opt.hiddenSize, opt.hiddenSize)
+if opt.FastLSTM then 
+    recurrent = nn.FastLSTM(opt.hiddenSize, opt.hiddenSize)
+else
+    recurrent = nn.Linear(opt.hiddenSize, opt.hiddenSize)
+end
 
 --- 5. recurrent neural network
 rnn = nn.Recurrent(opt.hiddenSize, glimpse, recurrent, nn[opt.transfer](), 99999)
@@ -125,8 +128,12 @@ agent:add(attention)
 --agent:add(nn.Linear(opt.hiddenSize, #ds:classes()))
 --agent:add(nn.LogSoftMax())
 -- #TODO[Done]: checkout nn.Sequencser usage
-agent:add(nn.Sequencer(nn.Linear(opt.hiddenSize, #ds:classes())))
-agent:add(nn.Sequencer(nn.LogSoftMax())) 
+step = nn.Sequential()
+step:add(nn.Linear(opt.hiddenSize, #ds:classes()))
+step:add(nn.LogSoftMax())
+agent:add(nn.Sequencer(step))
+--agent:add(nn.Sequencer(nn.Linear(opt.hiddenSize, #ds:classes())))
+--agent:add(nn.Sequencer(nn.LogSoftMax())) 
 
 -- add the baseline reward predictor
 seq = nn.Sequential()
@@ -152,7 +159,7 @@ train = dp.OptimizerCaptioner{
    loss = nn.ParallelCriterion(true)
       :add(nn.ModuleCriterion(nn.SequencerCriterion(nn.ClassNLLCriterion())), nil, nn.Sequencer(nn.Convert()))
       --:add(nn.ModuleCriterion(nn.SequencerCriterion(nn.VRClassRewardCaptioner(agent, opt.rewardScale))), nil, nn.Sequencer(nn.Convert()))
-      :add(nn.ModuleCriterion(nn.VRClassRewardCaptioner(agent, opt.rewardScale)), nil, nn.Convert())
+	:add(nn.ModuleCriterion(nn.VRClassRewardCaptioner(agent, opt.rewardScale)), nil, nn.Convert())
    ,
    epoch_callback = function(model, report) -- called every epoch
       if report.epoch > 0 then
@@ -206,12 +213,12 @@ xp = dp.Experiment{
    validator = valid,
    tester = tester,
    observer = {
-      ad,
-      dp.FileLogger(),
+      --ad,
+      --dp.FileLogger(),
       dp.EarlyStopper{
          max_epochs = opt.maxTries, 
          error_report={'validator','feedback','perplexity','ppl'},
-         --maximize = false
+         --maximize = true 
       }
    },
    random_seed = os.time(),
