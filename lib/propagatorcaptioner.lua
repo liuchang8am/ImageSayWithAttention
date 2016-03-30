@@ -212,6 +212,9 @@ function PropagatorCaptioner:forward(batch)
     -- location in each sample sentence in the batches.
     -- And we can't forward null tokens to the loss function.
     self._err = 0
+    print ("batch_size")
+    print (batch_size)
+    io.read(1)
     for batch = 1, batch_size do -- for each sample in the batch, sample is target[batch]
 
 	-- process the ground truth labels
@@ -259,10 +262,15 @@ function PropagatorCaptioner:forward(batch)
 	    --_, idx = torch.max(temp_output[1][i],2) -- this line will cause the mediator.lua split point to Tensor.split error
 	end
 	io.write ("\n")
+--	print ("temp_output")
+--	print (temp_output)
+--	io.read(1)
+--	print ("temp_target")
+--	print (temp_target)
+--	io.read(1)
    	self._err = self._err + self._loss:forward(temp_output, temp_target)
     end
     print ("propagator self._err:", self._err)
-    debug = nil
     --io.read(1)
     --self.err = self._loss:forward(self.output, target)
 end

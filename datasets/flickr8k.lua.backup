@@ -4,24 +4,27 @@
 -- Dataformat: 1 image / 5 sentences
 ------------------------------------------------------------------------
 require 'hdf5'
+--#TODO: add comments
 
-version = 2.0 -- without dp
+version = 2.0 -- no dp
 
-local Flickr8k = torch.class("Flickr8k")
+local Flickr8k, DataSource = torch.class("dp.Flickr8k")
+Flickr8k.isFlickr8k = true
+
+Flickr8k._name = 'flickr8k'
+Flickr8k._image_size = { 3, 256, 256 }
+Flickr8k._image_axes = 'bchw'
+Flickr8k._feature_size = 3 * 256 * 256
 
 function Flickr8k:__init(config)
-    self._name = 'flickr8k'
-    self._image_size = { 3, 256, 256 }
-    self._image_axes = 'bchw'
-    self._feature_size = 3 * 256 * 256
-
     config = config or {}
     assert(torch.type(config) == 'table' and not config[1],
         "Constructor requires key-value arguments")
     local args, load_all, input_preprocess, target_preprocess
     args, self._valid_ratio, self._train_file, self._test_file,
     self._data_path, self._scale, self._binarize, self._shuffle,
-    self._download_url, load_all
+    self._download_url, load_all, input_preprocess,
+    target_preprocess
     = xlua.unpack({ config },
         'Flickr8k',
         'Caption Dataset 5 sentences/image',
@@ -33,7 +36,9 @@ function Flickr8k:__init(config)
         {arg = 'binarize',type = 'boolean',default = false},
         {arg = 'shuffle',type = 'boolean',default = false},
         {arg = 'download_url',type = 'string',default = 'https://stife076.files.wordpress.com/2015/02/mnist4.zip'},
-        {arg = 'load_all',type = 'boolean',default = true},)
+        {arg = 'load_all',type = 'boolean',default = true},
+        {arg = 'input_preprocess',type = 'table | dp.Preprocess'},
+        {arg = 'target_preprocess',type = 'table | dp.Preprocess'})
 
     if (self._scale == nil) then
         self._scale = { 0, 1 }
@@ -45,10 +50,20 @@ function Flickr8k:__init(config)
         self:loadValid()
         self:loadTest()
     end
+    DataSource.__init(self, {
+        train_set = self:trainSet(),
+        valid_set = self:validSet(),
+        test_set = self:testSet(),
+        input_preprocess = input_preprocess,
+        target_preprocess = target_preprocess
+    })
+
 end
 
 --- Load the files
 function Flickr8k:setup()
+    --#TODO: add download data from url script
+
     --1. read data file
     --print("Loading flickr8k data.h5 file ...")
     --local h5_filepath = self._data_path .. '/' .. 'data_t=5.h5'
@@ -199,6 +214,14 @@ function Flickr8k:createDataSet(inputs, targets, which_set)
         inputs = inputs:index(1, indices)
         targets = targets:index(1, indices)
     end
+    if self._scale and not self._binarize then
+        DataSource.rescale(inputs, self._scale[1], self._scale[2])
+    end
+    -- class 0 will have index 1, but why do this?
+    -- #TODO: does this add(1) method influence futher index mapping?
+    
+    --targets:add(1)
+  
     -- construct inputs and targets dp.Views
     local input_v, target_v = dp.ImageView(), dp.ClassView()
     input_v:forward(self._image_axes, inputs)
@@ -226,8 +249,16 @@ function Flickr8k:createDataSet(inputs, targets, which_set)
 	end
     end
 
+    --for i = 1, 17 do print (self.vocab[tostring(targets[15][i])]) end
+    --io.read(1)
+    --for i = 1, 17 do print (self.vocab[tostring(targets[10][i])]) end
+    --io.read(1)
+
+    target_v:forward('bt', targets) -- Note: 'bt' is multi class
+    target_v:setClasses(self._classes)
     -- construct dataset
     local ds = dp.DataSet { inputs = input_v, targets = target_v, which_set = which_set }
+    ds:ioShapes('bchw', 'bt')
     return ds
 end
 

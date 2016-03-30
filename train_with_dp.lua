@@ -1,4 +1,5 @@
 --require('mobdebug').start()
+require 'dp'
 require 'rnn'
 require 'image'
 require 'datasets/flickr8k'
