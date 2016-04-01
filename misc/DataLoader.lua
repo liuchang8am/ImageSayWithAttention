@@ -103,7 +103,7 @@ function DataLoader:getBatch(opt)
   assert(split_ix, 'split ' .. split .. ' not found.')
 
   -- pick an index of the datapoint to load next
-  local img_batch_raw = torch.ByteTensor(batch_size, 3, 256, 256)
+  local img_batch_raw = torch.ByteTensor(batch_size*seq_per_img, 3, 256, 256) -- duplicate the image by seq_per_img for later batch training
   local label_batch = torch.LongTensor(batch_size * seq_per_img, self.seq_length)
   local max_index = #split_ix
   local wrapped = false
@@ -120,7 +120,10 @@ function DataLoader:getBatch(opt)
     -- fetch the image from h5
     local img = self.h5_file:read('/images'):partial({ix,ix},{1,self.num_channels},
                             {1,self.max_image_size},{1,self.max_image_size})
-    img_batch_raw[i] = img
+
+    for j = (i-1)*seq_per_img+1, i*seq_per_img do
+	img_batch_raw[j] = img
+    end
 
     -- fetch the sequence labels
     local ix1 = self.label_start_ix[ix]
@@ -150,11 +153,14 @@ function DataLoader:getBatch(opt)
     table.insert(infos, info_struct)
   end
 
+  local inputs = {}
+  table.insert(inputs, img_batch_raw)
+  table.insert(inputs, label_batch:transpose(1,2):contiguous()) -- note: make label sequences go down as columns
+
   local data = {}
-  data.images = img_batch_raw
-  data.labels = label_batch:transpose(1,2):contiguous() -- note: make label sequences go down as columns
-  data.bounds = {it_pos_now = self.iterators[split], it_max = #split_ix, wrapped = wrapped}
-  data.infos = infos
+  data.inputs = inputs
+  data.targest = inputs[2]--labels
+  data.batchSize = batch_size*seq_per_img
   return data
 end
 

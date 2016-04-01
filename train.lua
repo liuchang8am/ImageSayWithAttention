@@ -8,6 +8,7 @@ require 'dpnn'
 --user-defined packages
 --require 'lib/VRCIDErReward' -- variance reduced CIDEr reward
 require 'misc.DataLoader' -- load dataset 'flickr8k', Ffickr30k or coco 
+require 'lib/RecurrentAttentionCaptioner'
 
 local debug = true
 
@@ -56,13 +57,13 @@ cmd:option('--imageHiddenSize', 256, 'size of hidden layer combining glimpse and
 -- activate function
 cmd:option('--transfer', 'ReLU', 'activation function')
 
--- recurrent layer
+-- language model
 cmd:option('--rho',17)
 cmd:option('--hiddenSize', 256)
-cmd:option('--dropout', false, 'apply dropout on hidden neurons')
 cmd:option('--FastLSTM', true, 'using LSTM instead of simple linear rnn unit')
-local opt = cmd:parse(arg)
+cmd:option('--seq_per_img', 5, 'sentence per image, default is set to 5')
 
+local opt = cmd:parse(arg)
 
 --- Load the dataset ---
 local  dataset = opt.dataset
@@ -134,7 +135,7 @@ locator:add(nn.HardTanh()) -- bounds sample between -1 and 1
 locator:add(nn.MulConstant(opt.unitPixels*2/ds:imageSize("h")))
 
 -- 8. the core: attend to interested places recurrently
-attention = nn.RecurrentAttention(rnn, locator, opt.rho, {opt.hiddenSize})
+attention = nn.RecurrentAttentionCaptioner(rnn, locator, opt.rho, {opt.hiddenSize})
 
 -- 9. the final model is a reinforcement learning agent
 agent = nn.Sequential()
@@ -183,16 +184,20 @@ local sumErr = 0
 --- Start training! ---
 while true do -- run forever until reach max_iters
 
-    -- get a batch
-    local batch = ds:getBatch(batch_size=opt.batchSize, split='train')
+    -- get a batch, not the actual batch_size that is forwarded is opt.batchSize * seq_per_img
+    -- because each image has several (say, 5) sentences
+    local batch = ds:getBatch{batch_size=opt.batchSize, split='train', seq_per_img=opt.seq_per_img}
     local inputs = batch.inputs -- inputs[1]: raw images in (B,C,H,W)
 				-- inputs[2]: words in number format
     local targets = batch.targets -- targets
 
-
     -- forward
     local outputs = agent:forward(inputs)
+
+    -- need to unpack batch, iterate each sample to loss one by one, due to viariant sequence length problem
+    -- eventhough we padded zeros to the sequence, we don't want to forwad those zeros
     local loss = criterion:forward(outputs, targets)
+    sumErr = sumErr + loss
 
     -- backward
     local gradOutputs = criterion:backward(putputs, targest)
