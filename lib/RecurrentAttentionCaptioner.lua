@@ -26,37 +26,40 @@ function RecurrentAttentionCaptioner:__init(rnn, action, nStep, hiddenSize)
    self.gradHidden = {}
 end
 
-function RecurrentAttentionCaptioner:updateOutput(input)
+function RecurrentAttentionCaptioner:updateOutput(inputs)
    self.rnn:forget()
    self.action:forget()
 
-   print ("Captioner:updateOutput")
-   print ("input")
-   print (input)
-   io.read(1)
-
+   local input = inputs[1]:double() -- input is BCHW raw images
+   local words = inputs[2]:double() -- words
 
    local nDim = input:dim()
+
+   words[torch.eq(words,0)] = 1 -- replace 0 with 1, to prevent nn.LookupTable 0 crash
    
    --print ("RecurrentAttentionCaptioner self.nStep is", self.nStep)
 
    for step=1,self.nStep do
       
-      print ("RecurrentAttentionCaptioner step = ", step) --io.read(1)
+      print ("RecurrentAttentionCaptioner step = ", step) io.read(1)
       
       if step == 1 then
          -- sample an initial starting actions by forwarding zeros through the action
          self._initInput = self._initInput or input.new()
          self._initInput:resize(input:size(1),table.unpack(self.hiddenSize)):zero()
          self.actions[1] = self.action:updateOutput(self._initInput)
+	 print ("self.actions[1]")
+	 print (self.actions[1])
+	 io.read(1)
       else
          -- sample actions from previous hidden activation (rnn output)
          self.actions[step] = self.action:updateOutput(self.output[step-1])
       end
       
       -- rnn handles the recurrence internally
-      local output = self.rnn:updateOutput{input, self.actions[step]}
-      self.output[step] = self.forwardActions and {output, self.actions[step]} or output
+      local output = self.rnn:updateOutput{input, self.actions[step], words}
+      --self.output[step] = self.forwardActions and {output, self.actions[step]} or output
+      self.output[step] = output
    end
    
    return self.output

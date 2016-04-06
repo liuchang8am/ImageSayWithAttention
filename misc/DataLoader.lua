@@ -155,11 +155,11 @@ function DataLoader:getBatch(opt)
 
   local inputs = {}
   table.insert(inputs, img_batch_raw)
-  table.insert(inputs, label_batch:transpose(1,2):contiguous()) -- note: make label sequences go down as columns
+  table.insert(inputs, label_batch:contiguous()) -- note: make label sequences go down as columns
 
   local data = {}
   data.inputs = inputs
-  data.targest = inputs[2]--labels
+  data.targets = inputs[2]--labels
   data.batchSize = batch_size*seq_per_img
   return data
 end

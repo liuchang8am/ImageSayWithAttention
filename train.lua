@@ -53,6 +53,7 @@ cmd:option('--glimpseScale', 2, 'scale of successive patches w.r.t. original inp
 cmd:option('--glimpseDepth', 1, 'number of concatenated downscaled patches')
 cmd:option('--locatorHiddenSize', 128, 'size of locator hidden layer')
 cmd:option('--imageHiddenSize', 256, 'size of hidden layer combining glimpse and locator hiddens')
+cmd:option('--wordsEmbeddingSize', 256, 'size of word embedding')
 
 -- activate function
 cmd:option('--transfer', 'ReLU', 'activation function')
@@ -96,7 +97,6 @@ locationSensor:add(nn[opt.transfer]())
 glimpseSensor = nn.Sequential()
 glimpseSensor:add(nn.DontCast(nn.SpatialGlimpse(opt.glimpsePatchSize, opt.glimpseDepth, opt.glimpseScale):float(), true))
 glimpseSensor:add(nn.Collapse(3))
---glimpseSensor:add(nn.Debug())
 glimpseSensor:add(nn.Linear(ds:imageSize('c')*opt.glimpsePatchSize^2*opt.glimpseDepth, opt.glimpseHiddenSize))
 glimpseSensor:add(nn[opt.transfer]())
 
@@ -105,18 +105,25 @@ glimpse = nn.Sequential()
 glimpse:add(nn.ConcatTable():add(locationSensor):add(glimpseSensor))
 glimpse:add(nn.JoinTable(1,1))
 glimpse:add(nn.Linear(opt.locatorHiddenSize+opt.glimpseHiddenSize, opt.imageHiddenSize))
-glimpse:add(nn[opt.transfer]())
-glimpse:add(nn.Linear(opt.imageHiddenSize, opt.hiddenSize))
+--glimpse:add(nn[opt.transfer]())
+--glimpse:add(nn.Linear(opt.imageHiddenSize, opt.hiddenSize))
 
 -- 4.words embedding
 wordsEmbedding = nn.Sequential()
-local lookup = nn.LookupTable(ds:getVocabSize()+1, opt.hiddenSize)
+local lookup = nn.LookupTable(ds:getVocabSize()+1, opt.wordsEmbeddingSize)
 lookup.maxnormout = -1
+wordsEmbedding:add(nn.SelectTable(3)) -- select the words
 wordsEmbedding:add(lookup)
 -- wordsEmbedding:add(nn.SplitTable(1)) ???? why SplitTable?
 
+-- 5.multimadalEmbedding
+multimodalEmbedding = nn.Sequential()
+multimodalEmbedding:add(nn.ConcatTable():add(glimpse):add(wordsEmbedding))
+multimodalEmbedding:add(nn.JoinTable(1,1))
+multimodalEmbedding:add(nn.Linear(opt.imageHiddenSize+opt.wordsEmbeddingSize, opt.hiddenSize))
+multimodalEmbedding:add(nn[opt.transfer]())
 
--- 5. recurrent layer
+-- 6. recurrent layer
 if opt.FastLSTM then 
     recurrent = nn.FastLSTM(opt.hiddenSize, opt.hiddenSize)
 else
@@ -124,8 +131,9 @@ else
 end
 
 -- 6. recurrent neural network
-rnn = nn.Recurrent(opt.hiddenSize, glimpse, recurrent, nn[opt.transfer](), 99999)
-
+--rnn = nn.Recurrent(opt.hiddenSize, glimpse, recurrent, nn[opt.transfer](), 99999)
+rnn = nn.Recurrent(opt.hiddenSize, multimodalEmbedding, recurrent, nn[opt.transfer](), 99999)
+-- nn.Recurrent(start, input, feedback, transfer, rho, merge)
 -- 7. action: sample {x,y} using reinforce
 locator = nn.Sequential()
 locator:add(nn.Linear(opt.hiddenSize,2))
