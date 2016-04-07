@@ -36,28 +36,31 @@ function RecurrentAttentionCaptioner:updateOutput(inputs)
    local nDim = input:dim()
 
    words[torch.eq(words,0)] = 1 -- replace 0 with 1, to prevent nn.LookupTable 0 crash
+                                -- this operation will not influence the optimization
+				-- since we will set the correspoding loss to zero during criterion
    
    --print ("RecurrentAttentionCaptioner self.nStep is", self.nStep)
 
-   for step=1,self.nStep do
+   for step=1,self.nStep do --self.nStep is opt.rho value
       
-      print ("RecurrentAttentionCaptioner step = ", step) io.read(1)
+      print ("RecurrentAttentionCaptioner step = ", step) --io.read(1)
       
       if step == 1 then
          -- sample an initial starting actions by forwarding zeros through the action
          self._initInput = self._initInput or input.new()
          self._initInput:resize(input:size(1),table.unpack(self.hiddenSize)):zero()
          self.actions[1] = self.action:updateOutput(self._initInput)
-	 print ("self.actions[1]")
-	 print (self.actions[1])
-	 io.read(1)
+	 --print ("self.actions[1]")
+	 --print (self.actions[1])
+	 --io.read(1)
       else
          -- sample actions from previous hidden activation (rnn output)
          self.actions[step] = self.action:updateOutput(self.output[step-1])
       end
       
       -- rnn handles the recurrence internally
-      local output = self.rnn:updateOutput{input, self.actions[step], words}
+      word = words[{{}, {step}}] -- select word [i]
+      local output = self.rnn:updateOutput{input, self.actions[step], word}
       --self.output[step] = self.forwardActions and {output, self.actions[step]} or output
       self.output[step] = output
    end

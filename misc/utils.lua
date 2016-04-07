@@ -1,6 +1,13 @@
 local cjson = require 'cjson'
 local utils = {}
 
+function utils.CIDEr(opt, gets, res)
+
+   print ("utils.CIDEr...") 
+   io.read(1)
+
+end
+
 -- Assume required if default_value is nil
 function utils.getopt(opt, key, default_value)
   if default_value == nil and (opt == nil or opt[key] == nil) then

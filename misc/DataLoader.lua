@@ -10,6 +10,11 @@ function DataLoader:__init(opt)
   self.info = utils.read_json(opt.json_file)
   self.ix_to_word = self.info.ix_to_word
   self.vocab_size = utils.count_keys(self.ix_to_word)
+
+  print ("self.ix_to_word")
+  print (self.ix_to_word)
+  io.read(1)
+
   print('vocab size is ' .. self.vocab_size)
   
   -- open the hdf5 file
@@ -98,7 +103,6 @@ function DataLoader:getBatch(opt)
   local split = utils.getopt(opt, 'split') -- lets require that user passes this in, for safety
   local batch_size = utils.getopt(opt, 'batch_size', 5) -- how many images get returned at one time (to go through CNN)
   local seq_per_img = utils.getopt(opt, 'seq_per_img', 5) -- number of sequences to return per image
-
   local split_ix = self.split_ix[split]
   assert(split_ix, 'split ' .. split .. ' not found.')
 

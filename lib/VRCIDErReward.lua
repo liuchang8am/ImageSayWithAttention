@@ -1,27 +1,37 @@
 ------------------------------------------------------------------------
---[[ VRClassRewardCaptioner ]] --
+--[[ VRCIDErReward ]] --
 -- Variance reduced classification reinforcement criterion.
 -- input : {class prediction, baseline reward}
 -- Reward is 1 for success, Reward is 0 otherwise.
 -- reward = scale*(Reward - baseline) where baseline is 2nd input element
 -- Note : for RNNs with R = 1 for last step in sequence, encapsulate it
--- in nn.ModuleCriterion(VRClassRewardCaptioner, nn.SelectTable(-1))
+-- in nn.ModuleCriterion(VRCIDErReward, nn.SelectTable(-1))
 ------------------------------------------------------------------------
-local VRClassRewardCaptioner, parent = torch.class("nn.VRClassRewardCaptioner", "nn.Criterion")
 
-function VRClassRewardCaptioner:__init(module, scale, criterion)
+local utils = require '../misc/utils'
+
+local VRCIDErReward, parent = torch.class("nn.VRCIDErReward", "nn.Criterion")
+
+function VRCIDErReward:__init(module, scale, criterion)
     parent.__init(self)
     self.module = module -- so it can call module:reinforce(reward)
     self.scale = scale or 1 -- scale of reward
     self.criterion = criterion or nn.MSECriterion() -- baseline criterion
     self.sizeAverage = true
     self.gradInput = { torch.Tensor() }
-    self.reward = {} -- 5 is batch size
-    --self.debug = true
-    --self.debug = false 
+    self.reward = {}
 end
 
-function VRClassRewardCaptioner:updateOutput(input, target)
+function VRCIDErReward:updateOutput(input, target)
+    
+    print ("VRCIDErReward:updateOutput")
+    print (input)
+    print ("up is input")
+    io.read(1)
+    print (target)
+    print ("up is target")
+    io.read(1)
+
     assert(torch.type(input) == 'table')
     
     debug = false
@@ -52,7 +62,7 @@ function VRClassRewardCaptioner:updateOutput(input, target)
     return self.output
 end
 
-function VRClassRewardCaptioner:updateGradInput(inputTable, target)
+function VRCIDErReward:updateGradInput(inputTable, target)
     local baseline = inputTable[1][2]:transpose(1,2)
     local batch_size = target:size(2)
     local timestep = #inputTable
@@ -96,7 +106,7 @@ function VRClassRewardCaptioner:updateGradInput(inputTable, target)
     
 end
 
-function VRClassRewardCaptioner:type(type)
+function VRCIDErReward:type(type)
     self._maxVal = nil
     self._maxIdx = nil
     self._target = nil

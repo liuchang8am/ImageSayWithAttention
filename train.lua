@@ -6,9 +6,11 @@ require 'image'
 require 'dpnn'
 
 --user-defined packages
---require 'lib/VRCIDErReward' -- variance reduced CIDEr reward
 require 'misc.DataLoader' -- load dataset 'flickr8k', Ffickr30k or coco 
 require 'lib/RecurrentAttentionCaptioner'
+require 'lib/VRCIDErReward' -- variance reduced CIDEr reward #TODO: change to BLEU4 if CIDEr fails
+require 'lib/LMClassNLLCriterion' -- NLL language loss
+--require 'lib/LMCriterion'
 
 local debug = true
 
@@ -40,8 +42,11 @@ cmd:option('--silent', false, 'dont print anything to stdout')
 cmd:option('--eval_every_iter', 2000, 'eval on validation set every __ iter')
 cmd:option('--eval_use_image', 100, 'eval using __ images in validation set')
 
+-- loss
+cmd:option('--lamda', 1, 'lamda that balances the two losses, i.e., NLL and Reward')
+
 -- reinforce
-cmd:option('--rewardScale', 10, "scale of positive reward (negative is 0)")
+cmd:option('--rewardScale', 1, "scale of positive reward (negative is 0)")
 cmd:option('--unitPixels', 127, "the locator unit (1,1) maps to pixels (13,13), or (-1,-1) maps to (-13,-13)")
 cmd:option('--locatorStd', 0.11, 'stdev of gaussian location sampler (between 0 and 1) (low values may cause NaNs)')
 cmd:option('--stochastic', false, 'Reinforce modules forward inputs stochastically during evaluation')
@@ -59,7 +64,7 @@ cmd:option('--wordsEmbeddingSize', 256, 'size of word embedding')
 cmd:option('--transfer', 'ReLU', 'activation function')
 
 -- language model
-cmd:option('--rho',17)
+cmd:option('--rho',16)
 cmd:option('--hiddenSize', 256)
 cmd:option('--FastLSTM', true, 'using LSTM instead of simple linear rnn unit')
 cmd:option('--seq_per_img', 5, 'sentence per image, default is set to 5')
@@ -114,7 +119,8 @@ local lookup = nn.LookupTable(ds:getVocabSize()+1, opt.wordsEmbeddingSize)
 lookup.maxnormout = -1
 wordsEmbedding:add(nn.SelectTable(3)) -- select the words
 wordsEmbedding:add(lookup)
--- wordsEmbedding:add(nn.SplitTable(1)) ???? why SplitTable?
+wordsEmbedding:add(nn.SplitTable(2)) 
+wordsEmbedding:add(nn.SelectTable(1))
 
 -- 5.multimadalEmbedding
 multimodalEmbedding = nn.Sequential()
@@ -168,7 +174,7 @@ agent:add(nn.Sequencer(concat2))
 
 
 -- if GPU then convert everything to cuda(), if possible
-if opt.gpuid > 0 then
+if opt.gpuid > 0 then --#TODO: if GPU enabled, some function may fail in Captioner and LM loss
     require 'cutorch'
     require 'cunn'
 
@@ -182,10 +188,11 @@ end
 
 --- Set the Cirterion ---
 --local crit1 = nn.SequencerCriterion(nn.ClassNLLCriterion())
---local crit2 = nn.VRCIDErReward(agent, opt.rewardScale)
+local crit1 = nn.LMClassNLLCriterion()
+local crit2 = nn.VRCIDErReward(agent, opt.rewardScale)
 --local criterion = nn.ParallelCriterion(true)
 --    :add(nn.ModuleCriterion(crit1, nil, nn.Convert()))
---    :add(nn.ModuelCriterion(crit2, nil, nn.Convert()))
+    --:add(nn.ModuelCriterion(crit2, nil, nn.Convert()))
 
 local iter = 0
 local sumErr = 0
@@ -204,10 +211,14 @@ while true do -- run forever until reach max_iters
 
     -- need to unpack batch, iterate each sample to loss one by one, due to viariant sequence length problem
     -- eventhough we padded zeros to the sequence, we don't want to forwad those zeros
-    local loss = criterion:forward(outputs, targets)
-    sumErr = sumErr + loss
+    -- unpack done in LMClassNLLCriterion
+    --local loss = criterion:forward(outputs, targets)
+    local loss1 = crit1:forward(outputs, targets)
+    local loss2 = crit2:forward(outputs, targets)
+    sumErr = sumErr + loss1 + opt.lamda * loss2
 
     -- backward
+    --local gradOutputs = criterion:backward(putputs, targest)
     local gradOutputs = criterion:backward(putputs, targest)
     agent:zeroGradParameters()
     agent:backward(inputs, gradOutputs)
@@ -217,9 +228,8 @@ while true do -- run forever until reach max_iters
     agent:updateParameters(opt.learningRate)
     agent:maxParamNorm(opt.maxOutNorm)
 
-
     if iter % 1000 == 0 then
-	collectGarbage()
+	collectGarbage() -- xi xi geng jian kang :) 
     end
 
     -- decay the learning rate
@@ -235,19 +245,7 @@ while true do -- run forever until reach max_iters
 	-- if get better performanec, save the checkpoint
     end
 
-
-
-
-
-
     if iter == opt.max_iters then -- reach max_iters
 	-- save the model
-	
     end
-
-
-
-
-
-
 end
