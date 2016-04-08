@@ -30,7 +30,7 @@ cmd = torch.CmdLine()
 cmd:text()
 cmd:text('Evaluate a Recurrent Model for Visual Attention')
 cmd:text('Options:')
-cmd:option('--xpPath', '/home/lc/save/1_cpu.dat', 'path to a previously saved model')
+cmd:option('--xpPath', '/Users/lc/save/1.dat', 'path to a previously saved model')
 cmd:option('--cuda', false, 'model was saved with cuda')
 cmd:option('--evalTest', false, 'model was saved with cuda')
 cmd:option('--stochastic', false, 'evaluate the model stochatically. Generate glimpses stochastically')
@@ -48,13 +48,7 @@ if opt.cuda then
 end
 
 xp = torch.load(opt.xpPath)
-
-if opt.cuda then 
-  model = xp:model().module 
-else
-  model = xp
-end
-
+model = xp:model().module 
 ra = model:findModules('nn.RecurrentAttention')[1]
 --actions_1 = ra.actions
 print (model)
@@ -74,7 +68,7 @@ output = model.output
 
 for t = 1, table.getn(output) do -- for each time step, total timesteps = table len
   _, idx = torch.max(output[t][1],2) -- idx is: batch x indexes, return the max_index of each sample
-  print ("t=", t, idx)
+  print (idx)
   Z = 1
 end
 
