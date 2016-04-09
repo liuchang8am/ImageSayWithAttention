@@ -85,7 +85,7 @@ function CiderScorer:compute_cider()
 		df = math.log(1.0) -- self.document_frequency[k] is nil
 	    end
 	    local n = self:count_word(k)
-	    print (self:count_word(k))
+	    --print (self:count_word(k))
 	    if not vec[n][k] then
 		vec[n][k] = v * (self.ref_len-df)
 	    else
@@ -104,6 +104,13 @@ function CiderScorer:compute_cider()
     end
 
     function sim(vec_hyp, vec_ref, norm_hyp, norm_ref, length_hyp, length_ref)
+	local data = length_hyp - length_ref
+	local val = torch.FloatTensor(4):zero()
+	for n = 1, self.n do
+	    for ngram, count in pairs(vec_hyp) do
+		val[0] = val[0] + math.min(count, 
+	    end
+	end
     end
 
     self.ref_len = math.log(self.len_crefs) 
@@ -114,7 +121,8 @@ function CiderScorer:compute_cider()
 	local refs = self.crefs[k]
 	local vec, norm, length = counts2vec(test)
 	local score = torch.FloatTensor(4):zero()
-	for ref in refs do -- current only one ref; possible 5 ref in the future
+	for ref,_ in pairs(refs) do -- current only one ref; possible 5 ref in the future
+	    print (ref) io.read(1)
 	    local vec_ref, norm_ref, length_ref = counts2vec(ref)
 	    score = score + sim(vec, vec_ref, norm, norm_ref, length, length_ref)
 	end
