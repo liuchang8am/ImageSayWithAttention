@@ -31,10 +31,6 @@ function CiderScorer:precook(s) --ngram
 	    end
 	end
     end
-    --print ("=============")
-    --print (counts)
-    --print (self:getLen(counts))
-    --io.read(1)
     return counts
 end
 
@@ -85,7 +81,6 @@ function CiderScorer:compute_cider()
 		df = math.log(1.0) -- self.document_frequency[k] is nil
 	    end
 	    local n = self:count_word(k)
-	    --print (self:count_word(k))
 	    if not vec[n][k] then
 		vec[n][k] = v * (self.ref_len-df)
 	    else
@@ -104,13 +99,22 @@ function CiderScorer:compute_cider()
     end
 
     function sim(vec_hyp, vec_ref, norm_hyp, norm_ref, length_hyp, length_ref)
-	local data = length_hyp - length_ref
+	local delta = length_hyp - length_ref
 	local val = torch.FloatTensor(4):zero()
 	for n = 1, self.n do
-	    for ngram, count in pairs(vec_hyp) do
-		val[0] = val[0] + math.min(count, 
+	    for ngram, count in pairs(vec_hyp[n]) do
+		if not vec_ref[n][ngram] then 
+		    vec_ref[n][ngram] = 0
+		end
+		val[n] = val[n] + math.min(count, vec_ref[n][ngram]) * vec_ref[n][ngram]
 	    end
+	    if norm_hyp[n] ~= 0 and norm_ref[n] ~= 0 then
+		val[n] = val[n] / (norm_hyp[n] * norm_ref[n])
+	    end
+	    -- add a length based gaussian penalty
+	    val[n] = val[n] * math.pow(math.exp(1), ( -math.pow(delta,2) / (2*math.pow(self.sigma,2)) ))
 	end
+	return val
     end
 
     self.ref_len = math.log(self.len_crefs) 
@@ -118,18 +122,17 @@ function CiderScorer:compute_cider()
     local scores = {}
     for k, v in pairs(self.ctest) do
 	local test = v
-	local refs = self.crefs[k]
+	local ref = self.crefs[k]
 	local vec, norm, length = counts2vec(test)
 	local score = torch.FloatTensor(4):zero()
-	for ref,_ in pairs(refs) do -- current only one ref; possible 5 ref in the future
-	    print (ref) io.read(1)
-	    local vec_ref, norm_ref, length_ref = counts2vec(ref)
-	    score = score + sim(vec, vec_ref, norm, norm_ref, length, length_ref)
-	end
+	local vec_ref, norm_ref, length_ref = counts2vec(ref)
+	score = score + sim(vec, vec_ref, norm, norm_ref, length, length_ref)
 	local score_avg = torch.mean(score)
-	
-
+	-- multiply score by 10
+	score_avg = score_avg * 10
+	table.insert(scores, score_avg)
     end
+    return scores
 end
 
 function CiderScorer:compute_score()
@@ -137,7 +140,7 @@ function CiderScorer:compute_score()
     self:compute_doc_freq()
     -- compute cider score
     local score = self:compute_cider()
-    return mean(score)
+    return self:mean(score), score
 end
 
 function CiderScorer:test()
@@ -175,4 +178,16 @@ function CiderScorer:count_word(str)
 	count = count + 1
     end
     return count
+end
+
+function CiderScorer:mean(T)
+-- compute the mean value for table T, elements in T should be numbers
+    local count = 0
+    local sum = 0
+    for k, v in pairs(T) do
+	sum = sum + v
+	count = count + 1
+    end
+    sum = sum / count
+    return sum
 end
