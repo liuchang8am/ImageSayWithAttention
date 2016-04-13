@@ -11,6 +11,17 @@ function CiderScorer:__init()
     self.ref_len = 0.0 -- log len
 end
 
+function CiderScorer:reset()
+    self.n = 4
+    self.sigma = 6.0
+    self.crefs = {}
+    sefl.ctest = {}
+    self.document_frequency = {}
+    self.len_ctest = 0
+    self.len_crefs = 0
+    self.ref_len = 0.0
+end
+
 function CiderScorer:precook(s) --ngram
     local words = {}
     local counts = {}
@@ -41,8 +52,6 @@ function CiderScorer:_add(hypo, ref)
 	    self:append_ctest(hypo)
 	end
     end
-    self.len_crefs = self:getLen(self.crefs)
-    self.len_ctest = self:getLen(self.ctest)
 end
 
 function CiderScorer:append_crefs(ref)
@@ -66,6 +75,8 @@ function CiderScorer:compute_doc_freq()
 end
 
 function CiderScorer:compute_cider()
+    self.len_crefs = self:getLen(self.crefs)
+    self.len_ctest = self:getLen(self.ctest)
     function counts2vec(cnts)
 	local vec = {}
 	local norm = torch.Tensor(self.n):zero()
@@ -125,6 +136,8 @@ function CiderScorer:compute_cider()
 	local ref = self.crefs[k]
 	local vec, norm, length = counts2vec(test)
 	local score = torch.FloatTensor(4):zero()
+	--print ("ref")
+	--print (ref) io.read(1)
 	local vec_ref, norm_ref, length_ref = counts2vec(ref)
 	score = score + sim(vec, vec_ref, norm, norm_ref, length, length_ref)
 	local score_avg = torch.mean(score)
@@ -135,6 +148,10 @@ function CiderScorer:compute_cider()
     return scores
 end
 
+
+------------------Core Function-----------------
+--- Before calling compute_score
+--- call "CiderScorer:_add(hypo, ref)" first
 function CiderScorer:compute_score()
     -- compute idf
     self:compute_doc_freq()
@@ -142,7 +159,10 @@ function CiderScorer:compute_score()
     local score = self:compute_cider()
     return self:mean(score), score
 end
+-----------------Core Function Ends-------------
 
+
+---- Below is utility functions ----
 function CiderScorer:test()
     local str = "several people seated in chairs in a waiting room with a snapple vending machine in the far corner of the room"
     --self:precook("tall flower arrangement in a pitcher by a window")

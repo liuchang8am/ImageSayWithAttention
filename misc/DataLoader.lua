@@ -4,19 +4,12 @@ local utils = require 'misc.utils'
 local DataLoader = torch.class('DataLoader')
 
 function DataLoader:__init(opt)
-  
   -- load the json file which contains additional information about the dataset
   print('DataLoader loading json file: ', opt.json_file)
   self.info = utils.read_json(opt.json_file)
   self.ix_to_word = self.info.ix_to_word
   self.vocab_size = utils.count_keys(self.ix_to_word)
-
-  print ("self.ix_to_word")
-  print (self.ix_to_word)
-  io.read(1)
-
   print('vocab size is ' .. self.vocab_size)
-  
   -- open the hdf5 file
   print('DataLoader loading h5 file: ', opt.h5_file)
   self.h5_file = hdf5.open(opt.h5_file, 'r')
@@ -24,8 +17,7 @@ function DataLoader:__init(opt)
   -- extract image size from dataset
   local images_size = self.h5_file:read('/images'):dataspaceSize()
   assert(#images_size == 4, '/images should be a 4D tensor')
-  assert(images_size[3] == images_size[4], 'width and height must match')
-  self.images_size = images_size
+  assert(images_size[3] == images_size[4], 'width and height must match') self.images_size = images_size
   self.num_images = images_size[1]
   self.num_channels = images_size[2]
   self.max_image_size = images_size[3]
@@ -54,6 +46,19 @@ function DataLoader:__init(opt)
   for k,v in pairs(self.split_ix) do
     print(string.format('assigned %d images to split %s', #v, k))
   end
+
+  self:construct_word_to_ix()
+  print (self.ix_to_word)
+  print (self.word_to_ix)
+  io.read(1)
+end
+
+function DataLoader:construct_word_to_ix()
+    local word_to_ix = {}
+    for k, v in pairs (self.ix_to_word) do
+	word_to_ix[v] = tonumber(k)
+    end
+    self.word_to_ix = word_to_ix
 end
 
 function DataLoader:imageSize(channel) -- by channel I mean b c h w

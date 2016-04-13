@@ -1,13 +1,6 @@
 local cjson = require 'cjson'
 local utils = {}
 
-function utils.CIDEr(opt, gets, res)
-
-   print ("utils.CIDEr...") 
-   io.read(1)
-
-end
-
 -- Assume required if default_value is nil
 function utils.getopt(opt, key, default_value)
   if default_value == nil and (opt == nil or opt[key] == nil) then
@@ -73,6 +66,19 @@ function utils.average_values(t)
     n = n + 1
   end
   return vsum / n
+end
+
+function utils.reformat(inputs, batchSize, nStep)
+    -- reformat the inputs, i.e., the outputs of the agent model for convinient loop
+    local outputs = {}
+    for batch = 1, batchSize do
+	local temp  ={}
+	for step = 1, nStep do
+	    table.insert(temp,inputs[step][1][batch])
+	end
+	table.insert(outputs, temp)
+    end
+    return outputs
 end
 
 return utils

@@ -1,12 +1,12 @@
-require 'cider_scorer'
+require './cider_scorer'
 
 A = CiderScorer()
 
 A:test()
 
 generated = {} -- generated sentences
-table.insert(generated,"a brown cat is laying on grass")
-table.insert(generated,"a group of people are playing basketball")
+table.insert(generated,"a brown cat is laying on grass ")
+table.insert(generated,"a group of people are playing basketball ")
 
 ground_truth = {} -- ground truth sentences
 table.insert(ground_truth,"a dog is running on the grass")

@@ -1,4 +1,6 @@
 require 'nn'
+local utils = require '../misc/utils'
+
 local LMClassNLLCriterion, parent = torch.class("nn.LMClassNLLCriterion", "nn.Criterion")
 
 function LMClassNLLCriterion:__init()
@@ -23,20 +25,13 @@ function LMClassNLLCriterion:updateOutput(inputs, targets) -- criterion forward
     local end_token = inputs[1][1]:size(2) --[1] is first timestep, second [1] is first element, size(2) is vocab_size+1
 
     -- need to reformat the inputs in batch x timestep, rather than timestep x batch
-    inputs = self:reformat(inputs)
+    inputs = utils.reformat(inputs, self.batchSize, self.nStep)
 
     local n = 0 -- for loss normalization
     for batch = 1, self.batchSize do -- first iterate over batch 
 	local first_time = true -- flag used for judging 0 padding
 	local sample_inputs = inputs[batch]
 	local sample_targets = targets[batch]
-	--print ("sample", batch)
-	--print ("inputs")
-	--print (sample_inputs)
-	--io.read(1)
-	--print ("targets")
-	--print (sample_targets)
-	--io.read(1)
 	for step = 1, self.nStep do -- then iterate over timestep 
 	    local loss
 	    local input = sample_inputs[step]
@@ -62,17 +57,18 @@ function LMClassNLLCriterion:updateOutput(inputs, targets) -- criterion forward
 end
 
 function LMClassNLLCriterion:updateGradInput(input, targets) -- criterion backward
+    -- #TODO
 end
 
-function LMClassNLLCriterion:reformat(inputs)
-    -- reformat the inputs, i.e., the outputs of the agent model for convinient loop
-    local outputs = {}
-    for batch = 1, self.batchSize do
-	local temp  ={}
-	for step = 1, self.nStep do
-	    table.insert(temp,inputs[step][1][batch])
-	end
-	table.insert(outputs, temp)
-    end
-    return outputs
-end
+--function LMClassNLLCriterion:reformat(inputs)
+--    -- reformat the inputs, i.e., the outputs of the agent model for convinient loop
+--    local outputs = {}
+--    for batch = 1, self.batchSize do
+--	local temp  ={}
+--	for step = 1, self.nStep do
+--	    table.insert(temp,inputs[step][1][batch])
+--	end
+--	table.insert(outputs, temp)
+--    end
+--    return outputs
+--end

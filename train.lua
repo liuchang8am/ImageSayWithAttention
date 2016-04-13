@@ -89,8 +89,7 @@ local ds = DataLoader{h5_file=input_h5_file, json_file=input_json_file}
 --- Define the Model ---
 -- model is an agent interacting with the environment(image)
 -- it tries to maximize its reward (CIDEr value)
--- training using REINFORCE rule, 
--- as well as surpervised sentence information to provide CIDEr reward
+-- training using REINFORCE rule, -- as well as surpervised sentence information to provide CIDEr reward
 
 -- 1. location sensor
 locationSensor = nn.Sequential()
@@ -189,7 +188,7 @@ end
 --- Set the Cirterion ---
 --local crit1 = nn.SequencerCriterion(nn.ClassNLLCriterion())
 local crit1 = nn.LMClassNLLCriterion()
-local crit2 = nn.VRCIDErReward(agent, opt.rewardScale)
+local crit2 = nn.VRCIDErReward(agent, opt.rewardScale, ds.ix_to_word)
 --local criterion = nn.ParallelCriterion(true)
 --    :add(nn.ModuleCriterion(crit1, nil, nn.Convert()))
     --:add(nn.ModuelCriterion(crit2, nil, nn.Convert()))
@@ -215,6 +214,7 @@ while true do -- run forever until reach max_iters
     --local loss = criterion:forward(outputs, targets)
     local loss1 = crit1:forward(outputs, targets)
     local loss2 = crit2:forward(outputs, targets)
+    print ("loss2 in train.lua ended") io.read(1)
     sumErr = sumErr + loss1 + opt.lamda * loss2
 
     -- backward
