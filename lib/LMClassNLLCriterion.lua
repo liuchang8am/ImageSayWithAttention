@@ -44,7 +44,7 @@ function LMClassNLLCriterion:updateOutput(inputs, targets) -- criterion forward
 	    if target ~= 0 then 
         	--print ("target", target)
 		loss = self.criterion:forward(input, target)
-		sum_loss = sum_loss + loss--accumulate loss
+		sum_loss = sum_loss - loss--accumulate loss
 		n = n + 1 -- accumulate if it's a valid loss computation
 	    end
 	end

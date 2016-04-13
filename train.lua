@@ -213,9 +213,11 @@ while true do -- run forever until reach max_iters
     -- unpack done in LMClassNLLCriterion
     --local loss = criterion:forward(outputs, targets)
     local loss1 = crit1:forward(outputs, targets)
+    print ("loss1 is:", loss1)
     local loss2 = crit2:forward(outputs, targets)
-    print ("loss2 in train.lua ended") io.read(1)
+    print ("loss2 is:", loss2)
     sumErr = sumErr + loss1 + opt.lamda * loss2
+    print ("Total Loss is:", sumErr) io.read(1)
 
     -- backward
     --local gradOutputs = criterion:backward(putputs, targest)

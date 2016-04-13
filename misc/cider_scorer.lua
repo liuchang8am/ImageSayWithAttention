@@ -15,7 +15,7 @@ function CiderScorer:reset()
     self.n = 4
     self.sigma = 6.0
     self.crefs = {}
-    sefl.ctest = {}
+    self.ctest = {}
     self.document_frequency = {}
     self.len_ctest = 0
     self.len_crefs = 0
