@@ -31,11 +31,11 @@ cmd:option('--uniform', 0.1, 'initialize parameters using uniform distribution b
 -- rnn layer 
 cmd:option('--lstm', true, 'use Long Short Term Memory (nn.LSTM instead of nn.Recurrent)')
 cmd:option('--gru', false, 'use Gated Recurrent Units (nn.GRU instead of nn.Recurrent)')
-cmd:option('--seqlen', 5, 'sequence length : back-propagate through time (BPTT) for this many time-steps')
+cmd:option('--seqlen', 7, 'sequence length : back-propagate through time (BPTT) for this many time-steps')
 cmd:option('--hiddensize', '{20}', 'number of hidden units used at output of each recurrent layer. When more than one is specified, RNN/LSTMs/GRUs are stacked')
 cmd:option('--dropout', 0, 'apply dropout with this probability after each rnn layer. dropout <= 0 disables it.')
 -- data
-cmd:option('--batchsize', 2, 'number of examples per batch')
+cmd:option('--batchsize', 1, 'number of examples per batch')
 cmd:option('--trainsize', 100, 'number of train examples seen between each epoch')
 cmd:option('--validsize', 10, 'number of valid examples used for early stopping and cross-validation') 
 cmd:option('--savepath', paths.concat(dl.SAVE_PATH, 'rnnlm'), 'path to directory where experiment log (includes model) will be saved')
@@ -192,6 +192,9 @@ while opt.maxepoch <= 0 or epoch <= opt.maxepoch do
       -- forward
       local outputs = lm:forward(inputs)
       local err = criterion:forward(outputs, targets)
+      print ("err")
+      print (err)
+      io.read(1)
       sumErr = sumErr + err
       
       -- backward 
@@ -200,8 +203,7 @@ while opt.maxepoch <= 0 or epoch <= opt.maxepoch do
       lm:backward(inputs, gradOutputs)
       
       -- update
-      if opt.cutoff > 0 then
-         local norm = lm:gradParamClip(opt.cutoff) -- affects gradParams
+      if opt.cutoff > 0 then local norm = lm:gradParamClip(opt.cutoff) -- affects gradParams
          opt.meanNorm = opt.meanNorm and (opt.meanNorm*0.9 + norm*0.1) or norm
       end
       lm:updateGradParameters(opt.momentum) -- affects gradParams

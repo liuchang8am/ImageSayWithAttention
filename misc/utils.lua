@@ -70,13 +70,12 @@ end
 
 function utils.reformat(inputs, batchSize, nStep)
     -- reformat the inputs, i.e., the outputs of the agent model for convinient loop
-    local outputs = {}
+    local D = inputs[1][1]:size(2)
+    local outputs = torch.Tensor(batchSize, nStep, D)
     for batch = 1, batchSize do
-	local temp  ={}
 	for step = 1, nStep do
-	    table.insert(temp,inputs[step][1][batch])
+	    outputs[{batch, step}] = inputs[step][1][batch]    
 	end
-	table.insert(outputs, temp)
     end
     return outputs
 end

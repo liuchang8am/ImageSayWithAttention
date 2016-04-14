@@ -194,9 +194,9 @@ local crit2 = nn.VRCIDErReward(agent, opt.rewardScale, ds.ix_to_word)
     --:add(nn.ModuelCriterion(crit2, nil, nn.Convert()))
 
 local iter = 0
-local sumErr = 0
 --- Start training! ---
 while true do -- run forever until reach max_iters
+    local sumErr = 0
 
     -- get a batch, not the actual batch_size that is forwarded is opt.batchSize * seq_per_img
     -- because each image has several (say, 5) sentences
@@ -216,14 +216,16 @@ while true do -- run forever until reach max_iters
     print ("loss1 is:", loss1)
     local loss2 = crit2:forward(outputs, targets)
     print ("loss2 is:", loss2)
-    sumErr = sumErr + loss1 + opt.lamda * loss2
+    sumErr = sumErr + loss1 + opt.lamda*loss2
     print ("Total Loss is:", sumErr) io.read(1)
 
     -- backward
-    --local gradOutputs = criterion:backward(putputs, targest)
-    local gradOutputs = criterion:backward(putputs, targest)
+    local grad_loss1 = crit1:backward(outputs, targets)
+    local grad_loss2 = crit2:backward(outputs, targets)
+    local grad_loss = grad_loss1 + opt.lamda*grad_loss2
+
     agent:zeroGradParameters()
-    agent:backward(inputs, gradOutputs)
+    agent:backward(inputs, grad_loss)
 
     -- update parameters
     agent:updageGradParameters(opt.momentum)
@@ -231,7 +233,7 @@ while true do -- run forever until reach max_iters
     agent:maxParamNorm(opt.maxOutNorm)
 
     if iter % 1000 == 0 then
-	collectGarbage() -- xi xi geng jian kang :) 
+	collectGarbage()
     end
 
     -- decay the learning rate

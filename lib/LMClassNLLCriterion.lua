@@ -10,13 +10,6 @@ end
 
 function LMClassNLLCriterion:updateOutput(inputs, targets) -- criterion forward
 
-    --print ("LM: updateOutput")
-    --print (inputs)
-    --print ("up is input")
-    --print (targets)
-    --print ("up is targets")
-    --io.read(1)
-
     self.nStep = table.getn(inputs)
 
     self.batchSize = targets:size(1)
@@ -26,6 +19,9 @@ function LMClassNLLCriterion:updateOutput(inputs, targets) -- criterion forward
 
     -- need to reformat the inputs in batch x timestep, rather than timestep x batch
     inputs = utils.reformat(inputs, self.batchSize, self.nStep)
+
+    -- set the gradInput after the reformat of inputs
+    self.gradInput:resizeAs(inputs):zero()
 
     local n = 0 -- for loss normalization
     for batch = 1, self.batchSize do -- first iterate over batch 
@@ -42,33 +38,19 @@ function LMClassNLLCriterion:updateOutput(inputs, targets) -- criterion forward
 		first_time = false
 	    end
 	    if target ~= 0 then 
-        	--print ("target", target)
 		loss = self.criterion:forward(input, target)
+		self.gradInput[{batch, step, target}] = -1
 		sum_loss = sum_loss - loss--accumulate loss
 		n = n + 1 -- accumulate if it's a valid loss computation
 	    end
 	end
     end
-
     self.output = sum_loss / n
-    print ("loss1 NLL:")
-    print (self.output)
+    self.gradInput:div(n)
     return self.output 
 end
 
 function LMClassNLLCriterion:updateGradInput(input, targets) -- criterion backward
-    -- #TODO
+    return self.gradInput
 end
 
---function LMClassNLLCriterion:reformat(inputs)
---    -- reformat the inputs, i.e., the outputs of the agent model for convinient loop
---    local outputs = {}
---    for batch = 1, self.batchSize do
---	local temp  ={}
---	for step = 1, self.nStep do
---	    table.insert(temp,inputs[step][1][batch])
---	end
---	table.insert(outputs, temp)
---    end
---    return outputs
---end

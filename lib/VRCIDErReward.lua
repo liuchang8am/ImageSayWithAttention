@@ -36,13 +36,6 @@ end
 
 function VRCIDErReward:updateOutput(input, target)
     
-    --print ("VRCIDErReward:updateOutput")
-    --print (input)
-    --print ("up is input")
-    --print (target)
-    --print ("up is target")
-    --io.read(1)
-
     assert(torch.type(input) == 'table')
 
     self.batch_size = target:size(1)
@@ -70,7 +63,6 @@ function VRCIDErReward:updateOutput(input, target)
 	    gen_word_t = self.vocab[tostring(gen_word_t[1])] --unpack and get the word by index
 	    generated_sentence = generated_sentence .. " " .. gen_word_t --append word, insert space in between
 	end
-	generated_sentence = ground_truth_sentence
 	self.CiderScorer:_add(generated_sentence, ground_truth_sentence)
 	print ("generated_sentence:", generated_sentence)
 	print ("ground_truth_sentence:", ground_truth_sentence)
@@ -85,56 +77,8 @@ function VRCIDErReward:updateOutput(input, target)
 end
 
 function VRCIDErReward:updateGradInput(inputTable, target)
-    local baseline = inputTable[1][2]:transpose(1,2)
-    local batch_size = target:size(2)
-    local timestep = #inputTable
-    local hidden_size = inputTable[1][1]:size(2)
-    local reward = torch.Tensor(batch_size) -- 1 x batch
-    for i = 1, batch_size do 
-        reward[i] = self.reward[i]
-    end
-    --print ("reward:", reward)
-    self.vrReward = reward
-    -- reduce variance of reward using baseline
-    --print ("baseline:", baseline)
-    self.vrReward:add(-1, baseline)
-    --print ("vrReward:", self.vrReward)
-
-    if self.sizeAverage then
-        self.vrReward:div(batch_size)
-    end
-    --print ("average vrReward:", self.vrReward)
-    -- broadcast reward to modules
-    self.module:reinforce(self.vrReward)
-
-    self.gradInput = {}
-    for i = 1, timestep do 
-        local gradInput_item  = {}
-        gradInput_item[1] = torch.Tensor(batch_size, hidden_size):fill(0)
-        gradInput_item[2] = self.criterion:backward(baseline, reward)
-        table.insert(self.gradInput, gradInput_item)
-    end
-    self.reward = {} -- reset
-
-    if debug then 
-	for k,v in pairs(self.gradInput) do 
-	    v[1]:fill(0)
-	    v[2]:fill(0)
-	end
-
-    	return self.gradInput
-    end
+    print (inputTable)
+    print ("inputTable")
+    io.read(1)
     return self.gradInput
-    
-end
-
-function VRCIDErReward:type(type)
-    self._maxVal = nil
-    self._maxIdx = nil
-    self._target = nil
-    local module = self.module
-    self.module = nil
-    local ret = parent.type(self, type)
-    self.module = module
-    return ret
 end
