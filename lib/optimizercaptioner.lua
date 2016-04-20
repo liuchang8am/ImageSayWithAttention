@@ -64,7 +64,9 @@ function OptimizerCaptioner:backward(batch)
    -- estimate gradient of loss w.r.t. outputs
    
    local temp_target = target[1]
-   self.gradOutput = self._loss:backward(self._temp_output, temp_target)
+   target = target:transpose(1,2)
+   -- backward also needs to split in sample
+   self.gradOutput = self._loss:backward(self._temp_output, target)
    --self.gradOutput = self._loss:backward(self.output, target)
    
    -- convert self.gradOutput back to 16 x X, X = {[], {[],b}}

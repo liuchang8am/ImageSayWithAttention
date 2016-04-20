@@ -22,7 +22,7 @@ cmd:option('--saturateEpoch', 800, 'epoch at which linear decayed LR will reach 
 cmd:option('--momentum', 0.9, 'momentum')
 cmd:option('--maxOutNorm', -1, 'max norm each layers output neuron weights')
 cmd:option('--cutoffNorm', -1, 'max l2-norm of contatenation of all gradParam tensors')
-cmd:option('--batchSize', 1, 'number of examples per batch')
+cmd:option('--batchSize', 13, 'number of examples per batch')
 cmd:option('--cuda', false, 'use CUDA')
 cmd:option('--useDevice', 1, 'sets the device (GPU) to use')
 cmd:option('--maxEpoch', 2000, 'maximum number of epochs to run')
@@ -50,8 +50,7 @@ cmd:option('--imageHiddenSize', 256, 'size of hidden layer combining glimpse and
 --[[ recurrent layer ]]--
 cmd:option('--rho', 7, 'back-propagate through time (BPTT) for rho time-steps')
 cmd:option('--hiddenSize', 256, 'number of hidden units used in Simple RNN.')
-cmd:option('--dropout', false, 'apply dropout on hidden neurons')
-cmd:option('--FastLSTM', false, 'use LSTM instead of linear layer')
+cmd:option('--FastLSTM', true, 'use LSTM instead of linear layer')
 
 --[[ data ]]--
 cmd:option('--dataset', 'Mnist', 'which dataset to use : Mnist | TranslattedMnist | etc')
