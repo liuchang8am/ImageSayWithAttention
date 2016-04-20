@@ -35,7 +35,7 @@ cmd:option('--seqlen', 7, 'sequence length : back-propagate through time (BPTT) 
 cmd:option('--hiddensize', '{20}', 'number of hidden units used at output of each recurrent layer. When more than one is specified, RNN/LSTMs/GRUs are stacked')
 cmd:option('--dropout', 0, 'apply dropout with this probability after each rnn layer. dropout <= 0 disables it.')
 -- data
-cmd:option('--batchsize', 1, 'number of examples per batch')
+cmd:option('--batchsize', 13, 'number of examples per batch')
 cmd:option('--trainsize', 100, 'number of train examples seen between each epoch')
 cmd:option('--validsize', 10, 'number of valid examples used for early stopping and cross-validation') 
 cmd:option('--savepath', paths.concat(dl.SAVE_PATH, 'rnnlm'), 'path to directory where experiment log (includes model) will be saved')
@@ -199,6 +199,11 @@ while opt.maxepoch <= 0 or epoch <= opt.maxepoch do
       
       -- backward 
       local gradOutputs = criterion:backward(outputs, targets)
+
+      print (gradOutputs)
+      print ("up is gradOutputs")
+      io.read(1)
+
       lm:zeroGradParameters()
       lm:backward(inputs, gradOutputs)
       

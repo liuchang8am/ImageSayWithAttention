@@ -1,5 +1,5 @@
 require 'hdf5'
-local utils = require 'misc.utils'
+local utils = require './utils'
 
 local DataLoader = torch.class('DataLoader')
 
@@ -50,7 +50,7 @@ function DataLoader:__init(opt)
   self:construct_word_to_ix()
   print (self.ix_to_word)
   print (self.word_to_ix)
-  io.read(1)
+  --io.read(1)
 end
 
 function DataLoader:construct_word_to_ix()

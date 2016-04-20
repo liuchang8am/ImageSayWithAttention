@@ -47,7 +47,17 @@ function LMClassNLLCriterion:updateOutput(inputs, targets) -- criterion forward
     end
     self.output = sum_loss / n
     self.gradInput:div(n)
+    self.gradInput = self:reformat_gradInput(self.gradInput)
     return self.output 
+end
+
+function LMClassNLLCriterion:reformat_gradInput(gradInput) -- gradInput is batchSize x nStep x vocab_size
+    local output = {}
+    for step = 1, self.nStep do
+	local temp = gradInput[{{}, step, {}}] -- select 10x156 along the time dimension
+	table.insert(output, temp)
+    end
+    return output
 end
 
 function LMClassNLLCriterion:updateGradInput(input, targets) -- criterion backward
