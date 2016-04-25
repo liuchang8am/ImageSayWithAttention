@@ -165,10 +165,15 @@ seq:add(nn.Add(1))
 concat = nn.ConcatTable():add(nn.Identity()):add(seq)
 concat2 = nn.ConcatTable():add(nn.Identity()):add(concat)
 
+basereward = nn.Sequential()
+basereward:add(nn.Constant(1,1))
+basereward:add(nn.Add(1))
+concat1 = nn.ConcatTable():add(nn.Identity()):add(basereward)
+agent:add(nn.Sequencer(concat1))
+
 -- output will be : {classpred, {classpred, basereward}}
 --agent:add(concat2)
-agent:add(nn.Sequencer(concat2))
-
+--agent:add(nn.Sequencer(concat2))
 
 -- if GPU then convert everything to cuda(), if possible
 if opt.gpuid > 0 then --#TODO: if GPU enabled, some function may fail in Captioner and LM loss
@@ -204,7 +209,10 @@ while true do -- run forever until reach max_iters
     local targets = batch.targets -- targets
 
     -- forward
-    local outputs = agent:forward(inputs)
+    print ("======> Forward propagation")
+    local outputs = agent:forward(inputs) -- outputs = {16 elements}
+					  -- each element: {1:batch * vocab_size; 2:batch * basereward}
+					  -- e.g. { 1: 10 * 156; 2: 10 * 1}
 
     -- need to unpack batch, iterate each sample to loss one by one, due to viariant sequence length problem
     -- eventhough we padded zeros to the sequence, we don't want to forwad those zeros
@@ -215,15 +223,14 @@ while true do -- run forever until reach max_iters
     local loss2 = crit2:forward(outputs, targets)
     print ("loss2 is:", loss2)
     sumErr = sumErr + loss1 + opt.lamda*loss2
-    print ("Total Loss is:", sumErr) io.read(1)
+    print ("Total Loss is:", sumErr)
 
     -- backward
     local grad_loss1 = crit1:backward(outputs, targets)
     local grad_loss2 = crit2:backward(outputs, targets)
-    local grad_loss = nn.utils.recursiveAdd(grad_loss1, opt.lamda, grad_loss2)
-    print (grad_loss)
-    print ("grad_loss")
-    io.read(1)
+    --local grad_loss = nn.utils.recursiveAdd(grad_loss1, opt.lamda, grad_loss2)
+    print ("======> Back propagation")
+    local grad_loss = grad_loss2
     agent:zeroGradParameters()
     agent:backward(inputs, grad_loss)
     print ("HHHHHHHH")

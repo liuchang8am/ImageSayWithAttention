@@ -1,8 +1,7 @@
 ------------------------------------------------------------------------
 --[[ VRCIDErReward ]] --
--- Variance reduced classification reinforcement criterion.
+-- Variance reduced CIDEr sentence reinforcement criterion.
 -- input : {class prediction, baseline reward}
--- Reward is 1 for success, Reward is 0 otherwise.
 -- reward = scale*(Reward - baseline) where baseline is 2nd input element
 -- Note : for RNNs with R = 1 for last step in sequence, encapsulate it
 -- in nn.ModuleCriterion(VRCIDErReward, nn.SelectTable(-1))
@@ -19,7 +18,7 @@ function VRCIDErReward:__init(module, scale, vocab)
     self.scale = scale or 1 -- scale of reward
     self.criterion = nn.MSECriterion() -- baseline criterion --#TODO: check whether should be MSECriterion
     self.sizeAverage = true
-    self.gradInput = { torch.Tensor() }
+    self.gradInput = {}
     self.reward = {}
     self.vocab = vocab -- vocab is ix_to_word
     self.CiderScorer = CiderScorer()
@@ -45,7 +44,7 @@ function VRCIDErReward:updateOutput(input, target)
     self.reward = torch.DoubleTensor(self.batch_size,1):zero()
 
     for i = 1, self.batch_size do
-	print ("sample", i)
+	--print ("sample", i)
 	local reward = 0
 	local sample = inputs[i]
 	local generated_sentence = ""
@@ -68,8 +67,8 @@ function VRCIDErReward:updateOutput(input, target)
 	    generated_sentence = generated_sentence .. " " .. gen_word_t --append word, insert space in between
 	end
 	self.CiderScorer:_add(generated_sentence, ground_truth_sentence)
-	print ("generated_sentence:", generated_sentence)
-	print ("ground_truth_sentence:", ground_truth_sentence)
+	--print ("generated_sentence:", generated_sentence)
+	--print ("ground_truth_sentence:", ground_truth_sentence)
 	reward = self.CiderScorer:compute_score()
 	self.reward[i] = reward
     end
@@ -97,6 +96,14 @@ function VRCIDErReward:updateGradInput(inputTable, target)
 
     -- broadcast reward to modules
     self.module:reinforce(self.vrReward)
+
+    --for i = 1, self.nStep do
+    --    local temp_gradInput = { torch.Tensor() }
+    --	temp_gradInput[1] = torch.DoubleTensor(self.batch_size, self.vocab_size+1):zero()
+    --	temp_gradInput[2] = torch.DoubleTensor(self.batch_size, 1):zero()
+    --	temp_gradInput[2] = self.criterion:backward(baseline_reward, self.reward)
+    --    table.insert(self.gradInput, temp_gradInput)
+    --end
 
     self.gradInput[1] = torch.DoubleTensor(self.batch_size, self.vocab_size+1):zero()
     self.gradInput[2] = torch.DoubleTensor(self.batch_size, 1):zero()

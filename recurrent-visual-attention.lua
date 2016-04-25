@@ -1,4 +1,3 @@
-require('mobdebug').start()
 require 'dp'
 require 'rnn'
 

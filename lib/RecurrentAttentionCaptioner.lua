@@ -43,7 +43,7 @@ function RecurrentAttentionCaptioner:updateOutput(inputs)
 
    for step=1,self.nStep do --self.nStep is opt.rho value
       
-      print ("RecurrentAttentionCaptioner step = ", step) --io.read(1)
+      --print ("RecurrentAttentionCaptioner step = ", step) --io.read(1)
       
       if step == 1 then
          -- sample an initial starting actions by forwarding zeros through the action
@@ -64,7 +64,11 @@ function RecurrentAttentionCaptioner:updateOutput(inputs)
       --self.output[step] = self.forwardActions and {output, self.actions[step]} or output
       self.output[step] = output
    end
-   
+
+   print (self.output)
+   print ("up is self.output in RecurrentAttentionCaptioner")
+   io.read(1)
+
    return self.output
 end
 
