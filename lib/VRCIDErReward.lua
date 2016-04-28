@@ -1,12 +1,3 @@
-------------------------------------------------------------------------
---[[ VRCIDErReward ]] --
--- Variance reduced CIDEr sentence reinforcement criterion.
--- input : {class prediction, baseline reward}
--- reward = scale*(Reward - baseline) where baseline is 2nd input element
--- Note : for RNNs with R = 1 for last step in sequence, encapsulate it
--- in nn.ModuleCriterion(VRCIDErReward, nn.SelectTable(-1))
-------------------------------------------------------------------------
-
 require '../misc/cider_scorer'
 local utils = require '../misc/utils'
 

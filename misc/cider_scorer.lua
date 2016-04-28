@@ -9,6 +9,8 @@ function CiderScorer:__init()
     self.len_crefs = 0
     self.len_ctest = 0
     self.ref_len = 0.0 -- log len
+    print ("Loading coco-val-df.p ... ")
+
 end
 
 function CiderScorer:reset()
