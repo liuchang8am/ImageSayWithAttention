@@ -95,8 +95,6 @@ function BleuScorer:_add(hypo, ref)
 end
 
 function BleuScorer:_single_reflen(reflens, option, testlen)
-    print ("reflens:", reflens)
-
     local reflen = 0
     if option == "shortest" then
 	reflen = min(reflens)
