@@ -7,18 +7,19 @@
 require '../misc/bleu_scorer'
 local utils = require '../misc/utils'
 
-local BLEU4Reward, parent = torch.class("nn.Reward", "nn.Criterion")
+local BLEUReward, parent = torch.class("nn.BLEUReward", "nn.Criterion")
 
-function BLEUReward:__init(module, scale, vocab)
+function BLEUReward:__init(args)
     parent.__init(self)
-    self.module = module -- so it can call module:reinforce(reward)
-    self.scale = scale or 1 -- scale of reward
+    self.module = args.module -- so it can call module:reinforce(reward)
+    self.scale = args.scale or 1 -- scale of reward
     self.criterion = nn.MSECriterion() -- baseline criterion --#TODO: check whether should be MSECriterion
     self.sizeAverage = true
     self.gradInput = {}
     self.reward = {}
-    self.vocab = vocab -- vocab is ix_to_word
-    self.CiderScorer = CiderScorer()
+    self.vocab = args.vocab -- vocab is ix_to_word
+    -- reward_signal can be : 1 --> BLEU1, 2 --> BLEU2, 3 --> BLEU3 , 4 --> BLEU4, and 5 --> BLEU_avg
+    self.BleuScorer = BleuScorer{single_sample=true, reward_signal=args.reward_signal}
 end
 
 function BLEUReward:int2word(index)
@@ -47,7 +48,7 @@ function BLEUReward:updateOutput(input, target)
 	local generated_sentence = ""
 	local ground_truth_sentence = ""
 	for t = 1, self.nStep do
-	    self.CiderScorer:reset() -- reset --#TODO: should I reset???
+	    self.BleuScorer:reset() -- reset --#TODO: should I reset??? --> yes
 	    -- ground_truth_sentence.append(word)
 	    local ref_word_idx_t = target[i][t]
 	    if ref_word_idx_t == 0 then -- if padding 0
@@ -63,10 +64,13 @@ function BLEUReward:updateOutput(input, target)
 	    if not gen_word_t then break end -- END token, break the generated sentence here
 	    generated_sentence = generated_sentence .. " " .. gen_word_t --append word, insert space in between
 	end
+	--generated_sentence = ground_truth_sentence
 	self.BleuScorer:_add(generated_sentence, ground_truth_sentence)
-	--print ("generated_sentence:", generated_sentence)
-	--print ("ground_truth_sentence:", ground_truth_sentence)
+	print ("generated_sentence:", generated_sentence)
+	print ("ground_truth_sentence:", ground_truth_sentence)
 	reward = self.BleuScorer:compute_score()
+	print ("reward:", reward)
+	io.read(1)
 	self.reward[i] = reward
     end
 

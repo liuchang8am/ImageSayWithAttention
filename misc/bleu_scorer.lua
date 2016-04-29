@@ -11,15 +11,17 @@ function BleuScorer:__init(arg)
     self.len_cref = 0
     self.len_ctest = 0
     self.special_reflen = nil
+    self.score = 0
     self.single_sample = arg.single_sample
+    self.reward_signal = arg.reward_signal
 end
 
 function BleuScorer:reset()
-    self.n = 4
     self.cref = {}
     self.ctest = {}
     self.len_ctest = 0
     self.len_cref = 0
+    self.score = 0
     self.special_reflen = nil
 end
 
@@ -111,9 +113,6 @@ function BleuScorer:compute_bleu(option)
     local tiny = 1e-15
     local bleu_list = torch.FloatTensor(self.n):zero()
 
-    self._testlen = 0
-    self._reflen = 0
-
     local totalcomps = {}
     totalcomps['testlen'] = 0
     totalcomps['reflen'] = 0
@@ -122,14 +121,14 @@ function BleuScorer:compute_bleu(option)
 
     for k,comps in pairs(self.ctest) do
 	local testlen = comps['testlen']
-	self._testlen = self._testlen + testlen
+	self.len_ctest = self.len_ctest + testlen
 	local reflen = 0
 	if not self.special_reflen then 
 	    reflen = self:_single_reflen(comps['reflen'], option, testlen)
 	else
 	    reflen = self.special_reflen
 	end
-	self._reflen = self._reflen + reflen
+	self.len_cref = self.len_cref + reflen
 	for _, key in pairs({"guess", "correct"}) do
 	    for k = 1, self.n do
 		totalcomps[key][k] = totalcomps[key][k] + comps[key][k]
@@ -148,9 +147,9 @@ function BleuScorer:compute_bleu(option)
 	    end
 	end
     end
-
     if self.single_sample then 
-	self._score = bleu_list
+	local score = bleu_list
+	return score
     else
 	--#TODO: if has more than one refs?
 	totalcomps['reflen'] = self._reflen
@@ -160,7 +159,7 @@ function BleuScorer:compute_bleu(option)
     	local bleu = 1
     	--for k = 1, self.n do
     end
-    return self._score 
+    return self.score 
 end
 
 
@@ -168,9 +167,13 @@ end
 --- Before calling compute_score
 --- call "BleuScorer:_add(hypo, ref)" first
 function BleuScorer:compute_score()
-    -- compute cider score
+    -- compute blue score
     local score = self:compute_bleu("closest")
-    return score
+    if self.reward_signal == 5 then -- BLEU_avg
+	return torch.mean(score)
+    else
+	return score[self.reward_signal]
+    end
 end
 -----------------Core Function Ends-------------
 

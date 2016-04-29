@@ -6,7 +6,8 @@ require 'dpnn'
 --user-defined packages
 require './misc/DataLoader' -- load dataset 'flickr8k', Ffickr30k or coco 
 require './lib/RecurrentAttentionCaptioner'
-require './lib/VRCIDErReward' -- variance reduced CIDEr reward #TODO: change to BLEU4 if CIDEr fails
+--require './lib/VRCIDErReward' -- variance reduced CIDEr reward #TODO: change to BLEU4 if CIDEr fails --> Done
+require './lib/BLEUReward' -- BLEU reward
 require './lib/LMClassNLLCriterion' -- NLL language loss
 --require 'lib/LMCriterion'
 
@@ -29,7 +30,7 @@ cmd:option('--minLR', 0.00001, 'minimum learning rate')
 cmd:option('--momentum', 0.9, 'momentum')
 cmd:option('--maxOutNorm', -1, 'max norm each layers output neuron weights')
 cmd:option('--cutoffNorm', -1, 'max l2-norm of contatenation of all gradParam tensors')
-cmd:option('--batchSize', 2, 'number of examples per batch') -- actual batch size is this batchSize * 5, where 5 is 5 sentences / image
+cmd:option('--batchSize', 1.0, 'number of examples per batch') -- actual batch size is this batchSize * 5, where 5 is 5 sentences / image
 cmd:option('--gpuid', -1, 'sets the device (GPU) to use. -1 = CPU')
 cmd:option('--max_iters', -1, 'maximum iterations to run, -1 = forever')
 cmd:option('--transfer', 'ReLU', 'activation function')
@@ -48,6 +49,7 @@ cmd:option('--rewardScale', 1, "scale of positive reward (negative is 0)")
 cmd:option('--unitPixels', 127, "the locator unit (1,1) maps to pixels (13,13), or (-1,-1) maps to (-13,-13)")
 cmd:option('--locatorStd', 0.11, 'stdev of gaussian location sampler (between 0 and 1) (low values may cause NaNs)')
 cmd:option('--stochastic', false, 'Reinforce modules forward inputs stochastically during evaluation')
+cmd:option('--reward_signal', 5, "reward_signal can be : 1 --> BLEU1, 2 --> BLEU2, 3 --> BLEU3 , 4 --> BLEU4, and 5 --> BLEU_avg")
 
 -- model info
 cmd:option('--glimpseHiddenSize', 128, 'size of glimpse hidden layer')
@@ -159,20 +161,27 @@ step:add(nn.LogSoftMax())
 agent:add(nn.Sequencer(step))
 
 -- add the baseline reward predictor
-seq = nn.Sequential()
-seq:add(nn.Constant(1,1))
-seq:add(nn.Add(1))
-concat = nn.ConcatTable():add(nn.Identity()):add(seq)
+seq1 = nn.Sequential()
+seq1:add(nn.SelectTable(-1))
+seq1:add(nn.Constant(1,1))
+seq1:add(nn.Add(1))
+
+seq2 = nn.Sequential()
+seq2:add(nn.SelectTable(-1))
+seq2:add(nn.Identity())
+
+concat = nn.ConcatTable():add(seq2):add(seq1)
+--concat = nn.ConcatTable():add(nn.Identity()):add(seq1)
 concat2 = nn.ConcatTable():add(nn.Identity()):add(concat)
 
-basereward = nn.Sequential()
-basereward:add(nn.Constant(1,1))
-basereward:add(nn.Add(1))
-concat1 = nn.ConcatTable():add(nn.Identity()):add(basereward)
-agent:add(nn.Sequencer(concat1))
+--basereward = nn.Sequential()
+--basereward:add(nn.Constant(1,1))
+--basereward:add(nn.Add(1))
+--concat1 = nn.ConcatTable():add(nn.Identity()):add(basereward)
+--agent:add(nn.Sequencer(concat1))
 
 -- output will be : {classpred, {classpred, basereward}}
---agent:add(concat2)
+agent:add(concat2)
 --agent:add(nn.Sequencer(concat2))
 
 -- if GPU then convert everything to cuda(), if possible
@@ -190,11 +199,17 @@ end
 
 --- Set the Cirterion ---
 --local crit1 = nn.SequencerCriterion(nn.ClassNLLCriterion())
-local crit1 = nn.LMClassNLLCriterion()
-local crit2 = nn.VRCIDErReward(agent, opt.rewardScale, ds.ix_to_word)
---local criterion = nn.ParallelCriterion(true)
---    :add(nn.ModuleCriterion(crit1, nil, nn.Convert()))
-    --:add(nn.ModuelCriterion(crit2, nil, nn.Convert()))
+local crit1 = nn.LMClassNLLCriterion{vocab=ds.ix_to_word}
+--local crit2 = nn.VRCIDErReward(agent, opt.rewardScale, ds.ix_to_word)
+
+local crit2 = nn.BLEUReward{module=agent, scale=opt.rewardScale, vocab=ds.ix_to_word, reward_signal=opt.reward_signal}
+
+local criterion = nn.ParallelCriterion(true)
+    :add(nn.ModuleCriterion(crit1, nil, nn.Convert()))
+    :add(nn.ModuleCriterion(crit2, nil, nn.Convert()))
+
+print ("Agent:")
+print (agent)
 
 local iter = 0
 --- Start training! ---
@@ -210,27 +225,33 @@ while true do -- run forever until reach max_iters
 
     -- forward
     print ("======> Forward propagation")
-    local outputs = agent:forward(inputs) -- outputs = {16 elements}
-					  -- each element: {1:batch * vocab_size; 2:batch * basereward}
-					  -- e.g. { 1: 10 * 156; 2: 10 * 1}
+    local outputs = agent:forward(inputs) 
+					  
+    --print ("agent outputs:")
+    --print (outputs)
+    --io.read(1)
 
     -- need to unpack batch, iterate each sample to loss one by one, due to viariant sequence length problem
     -- eventhough we padded zeros to the sequence, we don't want to forwad those zeros
     -- unpack done in LMClassNLLCriterion
-    --local loss = criterion:forward(outputs, targets)
-    local loss1 = crit1:forward(outputs, targets)
-    print ("loss1 is:", loss1)
-    local loss2 = crit2:forward(outputs, targets)
-    print ("loss2 is:", loss2)
-    sumErr = sumErr + loss1 + opt.lamda*loss2
-    print ("Total Loss is:", sumErr)
+    local loss = criterion:forward(outputs, targets)
+    --local loss1 = crit1:forward(outputs, targets)
+    --print ("loss1 is:", loss1)
+    --local loss2 = crit2:forward(outputs, targets)
+    --print ("loss2 is:", loss2)
+    --sumErr = sumErr + loss1 + opt.lamda*loss2
+    --print ("Total Loss is:", sumErr)
+    print ("loss is", loss)
+    io.read(1)
 
     -- backward
-    local grad_loss1 = crit1:backward(outputs, targets)
-    local grad_loss2 = crit2:backward(outputs, targets)
+    --local gradOutput1 = crit1:backward(outputs, targets)
+    --local gradOutput2 = crit2:backward(outputs, targets)
     --local grad_loss = nn.utils.recursiveAdd(grad_loss1, opt.lamda, grad_loss2)
     print ("======> Back propagation")
-    local grad_loss = grad_loss2
+    local gradOutput = criterion:updateOutput(outputs, targets)
+    print ("gradOutput is ", gradOutput)
+    io.read(1)
     agent:zeroGradParameters()
     agent:backward(inputs, grad_loss)
     print ("HHHHHHHH")

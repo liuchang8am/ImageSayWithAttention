@@ -65,9 +65,9 @@ function RecurrentAttentionCaptioner:updateOutput(inputs)
       self.output[step] = output
    end
 
-   print (self.output)
-   print ("up is self.output in RecurrentAttentionCaptioner")
-   io.read(1)
+  -- print (self.output)
+  -- print ("up is self.output in RecurrentAttentionCaptioner")
+  -- io.read(1)
 
    return self.output
 end
