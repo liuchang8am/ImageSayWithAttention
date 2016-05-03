@@ -28,13 +28,8 @@ function LMClassNLLCriterion:updateOutput(inputTable, targets) -- criterion forw
 
     -- need to reformat the inputs in batch x timestep, rather than timestep x batch
     inputs = utils.reformat(inputs, self.batchSize, self.nStep)
-
-    --print ("input after reformat")
-    --print (inputs)
-    --io.read(1)
-
     -- set the gradInput after the reformat of inputs
-    self.gradInput:resizeAs(inputs):zero()
+    self.gradInput = torch.DoubleTensor(inputs:size()):zero() --#TODO: tensor type ?? if cuda ??
 
     local n = 0 -- for loss normalization
     for batch = 1, self.batchSize do -- first iterate over batch 

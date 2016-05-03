@@ -23,14 +23,14 @@ cmd:text('Options')
 --- training options ---
 
 cmd:option('--dataset', 'Flickr8k', 'training on which dataset? Flickr8k, Flickr30k or MSCOCO')
-cmd:option('--learningRate', 0.001, 'learning rate at t=0')
+cmd:option('--learningRate', 0.0001, 'learning rate at t=0')
 cmd:option('--lr_decay_every_iter', 10000, 'decay learning rate every __ iter, by opt.lr_decay_factor')
 cmd:option('--lr_decay_factor', 10, 'decay learning rate by __')
 cmd:option('--minLR', 0.00001, 'minimum learning rate')
 cmd:option('--momentum', 0.9, 'momentum')
 cmd:option('--maxOutNorm', -1, 'max norm each layers output neuron weights')
 cmd:option('--cutoffNorm', -1, 'max l2-norm of contatenation of all gradParam tensors')
-cmd:option('--batchSize', 2, 'number of examples per batch') -- actual batch size is this batchSize * 5, where 5 is 5 sentences / image; this parameter should be >= 1
+cmd:option('--batchSize', 10, 'number of examples per batch') -- actual batch size is this batchSize * 5, where 5 is 5 sentences / image; this parameter should be >= 1
 cmd:option('--gpuid', -1, 'sets the device (GPU) to use. -1 = CPU')
 cmd:option('--max_iters', -1, 'maximum iterations to run, -1 = forever')
 cmd:option('--transfer', 'ReLU', 'activation function')
@@ -45,7 +45,7 @@ cmd:option('--eval_use_image', 100, 'eval using __ images in validation set')
 cmd:option('--lamda', 1, 'lamda that balances the two losses, i.e., NLL and Reward')
 
 -- reinforce
-cmd:option('--rewardScale', 1, "scale of positive reward (negative is 0)")
+cmd:option('--rewardScale', 100, "scale of positive reward (negative is 0)")
 cmd:option('--unitPixels', 127, "the locator unit (1,1) maps to pixels (13,13), or (-1,-1) maps to (-13,-13)")
 cmd:option('--locatorStd', 0.11, 'stdev of gaussian location sampler (between 0 and 1) (low values may cause NaNs)')
 cmd:option('--stochastic', false, 'Reinforce modules forward inputs stochastically during evaluation')
@@ -201,6 +201,7 @@ local crit2 = nn.BLEUReward{module=agent, scale=opt.rewardScale, vocab=ds.ix_to_
 local iter = 0
 --- Start training! ---
 while true do -- run forever until reach max_iters
+    print ("===========> Iter:", iter)
     local sumErr = 0
 
     -- get a batch, not the actual batch_size that is forwarded is opt.batchSize * seq_per_img
@@ -211,11 +212,11 @@ while true do -- run forever until reach max_iters
     local targets = batch.targets -- targets
 
     -- forward
-    print ("======> Forward propagation")
+    --print ("======> Forward propagation")
     local outputs = agent:forward(inputs) 
 					  
-    print ("agent outputs:")
-    print (outputs)
+    --print ("agent outputs:")
+    --print (outputs)
     --io.read(1)
 
     -- need to unpack batch, iterate each sample to loss one by one, due to viariant sequence length problem
@@ -229,9 +230,9 @@ while true do -- run forever until reach max_iters
     sumErr = sumErr + loss1 + opt.lamda*loss2
     print ("Total Loss is:", sumErr)
 
-    io.read(1)
+    --io.read(1)
     -- backward
-    print ("======> Back propagation")
+    --print ("======> Back propagation")
     -- backward through multiple loss
     local gradOutput1 = crit1:backward(outputs, targets)
     --print ("gradOutput1:", gradOutput1)
@@ -244,17 +245,16 @@ while true do -- run forever until reach max_iters
     -- backward through the model
     agent:zeroGradParameters()
     agent:backward(inputs, gradOutputs)
-    print ("HHHHHHHH")
-    io.read(1)
 
     -- update parameters
-    agent:updageGradParameters(opt.momentum)
+    agent:updateGradParameters(opt.momentum)
     agent:updateParameters(opt.learningRate)
     agent:maxParamNorm(opt.maxOutNorm)
 
     if iter % 1000 == 0 then
-	collectGarbage()
+	collectgarbage()
     end
+    iter = iter + 1
 
     -- decay the learning rate
     if iter % opt.lr_decay_every_iter == 0 then
