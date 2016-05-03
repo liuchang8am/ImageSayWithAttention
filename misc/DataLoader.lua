@@ -1,5 +1,6 @@
 require 'hdf5'
-local utils = require './utils'
+--local utils = require './utils'
+local utils = require 'misc.utils'
 
 local DataLoader = torch.class('DataLoader')
 
@@ -48,8 +49,15 @@ function DataLoader:__init(opt)
   end
 
   self:construct_word_to_ix()
-  print (self.ix_to_word)
-  print (self.word_to_ix)
+  --print (self.ix_to_word[tostring(120)])
+  --io.read(1)
+  --for k,v in pairs(self.ix_to_word) do
+  --  print (k,v)
+  --  print (torch.type(k))
+  --  io.read(1)
+  --end
+  --print (self.ix_to_word)
+  --print (self.word_to_ix)
   --io.read(1)
 end
 
@@ -109,6 +117,7 @@ function DataLoader:getBatch(opt)
   local batch_size = utils.getopt(opt, 'batch_size', 5) -- how many images get returned at one time (to go through CNN)
   local seq_per_img = utils.getopt(opt, 'seq_per_img', 5) -- number of sequences to return per image
   local split_ix = self.split_ix[split]
+  assert(batch_size>=1, "opt.batch_size should be >= 1")
   assert(split_ix, 'split ' .. split .. ' not found.')
 
   -- pick an index of the datapoint to load next
@@ -170,6 +179,21 @@ function DataLoader:getBatch(opt)
   data.inputs = inputs
   data.targets = inputs[2]--labels
   data.batchSize = batch_size*seq_per_img
+
+  -- debug
+ -- local image = require("image")
+ -- for i = 1, inputs[1]:size(1) do
+ --   local img = inputs[1][i]
+ --   local sentence = inputs[2][i]
+ --   for j = 1, sentence:size(1) do
+ --     local word = self.ix_to_word[tostring(sentence[j])]
+ --     print (word)
+ --   end
+ --   print ("\n")
+ --   image.display(img)
+ --   io.read(1)
+ -- end
+
   return data
 end
 

@@ -49,6 +49,11 @@ function RecurrentAttentionCaptioner:updateOutput(inputs)
          -- sample an initial starting actions by forwarding zeros through the action
          self._initInput = self._initInput or input.new()
          self._initInput:resize(input:size(1),table.unpack(self.hiddenSize)):zero()
+	 --print (self._initInput)
+	 --print ("self._initInput")
+	 --io.read(1)
+	 --print (self.action)
+	 --io.read(1)
          self.actions[1] = self.action:updateOutput(self._initInput)
 	 --print ("self.actions[1]")
 	 --print (self.actions[1])
@@ -77,10 +82,18 @@ function RecurrentAttentionCaptioner:updateGradInput(input, gradOutput)
    assert(torch.type(gradOutput) == 'table', "expecting gradOutput table")
    assert(#gradOutput == self.nStep, "gradOutput should have nStep elements")
     
+   print (gradOutput)
+   print ("gradOutput in RecurrentAttentionCaptioner")
    -- back-propagate through time (BPTT)
    for step=self.nStep,1,-1 do
       -- 1. backward through the action layer
       local gradOutput_, gradAction_ = gradOutput[step]
+      print (gradOutput_)
+      print ("gradOutput_")
+      print (gradAction_)
+      print ("gradAction_")
+      io.read(1)
+
       if self.forwardActions then
          gradOutput_, gradAction_ = unpack(gradOutput[step])
       else

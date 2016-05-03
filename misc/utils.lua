@@ -84,4 +84,17 @@ function utils.roundToNthDecimal(num, n)
     local mult = 10^(n or 0)
     return math.floor(num*mult+0.5) / mult
 end
+
+function utils.addGradLosses(gradloss1, gradloss2)
+    -- loss1 is LM loss, loss2 is reward, add corresponding part
+    assert (torch.type(gradloss1) == "table", "LM loss outputs should be table")
+    assert (torch.type(gradloss2) == "table", "Reward loss outputs should be table")
+
+    local gradloss = {}
+    table.insert(gradloss, gradloss1)
+    table.insert(gradloss, gradloss2[2]) -- loss2[1] is always 0
+    
+    return gradloss
+end
 return utils
+

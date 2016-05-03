@@ -2,7 +2,7 @@
 require 'rnn'
 require 'image'
 require 'dpnn'
-
+local utils = require 'misc.utils'
 --user-defined packages
 require './misc/DataLoader' -- load dataset 'flickr8k', Ffickr30k or coco 
 require './lib/RecurrentAttentionCaptioner'
@@ -30,7 +30,7 @@ cmd:option('--minLR', 0.00001, 'minimum learning rate')
 cmd:option('--momentum', 0.9, 'momentum')
 cmd:option('--maxOutNorm', -1, 'max norm each layers output neuron weights')
 cmd:option('--cutoffNorm', -1, 'max l2-norm of contatenation of all gradParam tensors')
-cmd:option('--batchSize', 1.0, 'number of examples per batch') -- actual batch size is this batchSize * 5, where 5 is 5 sentences / image
+cmd:option('--batchSize', 2, 'number of examples per batch') -- actual batch size is this batchSize * 5, where 5 is 5 sentences / image; this parameter should be >= 1
 cmd:option('--gpuid', -1, 'sets the device (GPU) to use. -1 = CPU')
 cmd:option('--max_iters', -1, 'maximum iterations to run, -1 = forever')
 cmd:option('--transfer', 'ReLU', 'activation function')
@@ -161,28 +161,15 @@ step:add(nn.LogSoftMax())
 agent:add(nn.Sequencer(step))
 
 -- add the baseline reward predictor
-seq1 = nn.Sequential()
-seq1:add(nn.SelectTable(-1))
-seq1:add(nn.Constant(1,1))
-seq1:add(nn.Add(1))
+seq = nn.Sequential()
+seq:add(nn.SelectTable(-1))
+seq:add(nn.Constant(1,1))
+seq:add(nn.Add(1))
 
-seq2 = nn.Sequential()
-seq2:add(nn.SelectTable(-1))
-seq2:add(nn.Identity())
+concat = nn.ConcatTable():add(nn.Identity()):add(seq)
 
-concat = nn.ConcatTable():add(seq2):add(seq1)
---concat = nn.ConcatTable():add(nn.Identity()):add(seq1)
-concat2 = nn.ConcatTable():add(nn.Identity()):add(concat)
-
---basereward = nn.Sequential()
---basereward:add(nn.Constant(1,1))
---basereward:add(nn.Add(1))
---concat1 = nn.ConcatTable():add(nn.Identity()):add(basereward)
---agent:add(nn.Sequencer(concat1))
-
--- output will be : {classpred, {classpred, basereward}}
-agent:add(concat2)
---agent:add(nn.Sequencer(concat2))
+-- output will be : {{time*batch*classpred}, batch*basereward}}
+agent:add(concat)
 
 -- if GPU then convert everything to cuda(), if possible
 if opt.gpuid > 0 then --#TODO: if GPU enabled, some function may fail in Captioner and LM loss
@@ -204,12 +191,12 @@ local crit1 = nn.LMClassNLLCriterion{vocab=ds.ix_to_word}
 
 local crit2 = nn.BLEUReward{module=agent, scale=opt.rewardScale, vocab=ds.ix_to_word, reward_signal=opt.reward_signal}
 
-local criterion = nn.ParallelCriterion(true)
-    :add(nn.ModuleCriterion(crit1, nil, nn.Convert()))
-    :add(nn.ModuleCriterion(crit2, nil, nn.Convert()))
+--local criterion = nn.ParallelCriterion(true)
+--    :add(nn.ModuleCriterion(crit1, nil, nn.Convert()))
+--    :add(nn.ModuleCriterion(crit2, nil, nn.Convert()))
 
-print ("Agent:")
-print (agent)
+--print ("Agent:")
+--print (agent)
 
 local iter = 0
 --- Start training! ---
@@ -227,33 +214,36 @@ while true do -- run forever until reach max_iters
     print ("======> Forward propagation")
     local outputs = agent:forward(inputs) 
 					  
-    --print ("agent outputs:")
-    --print (outputs)
+    print ("agent outputs:")
+    print (outputs)
     --io.read(1)
 
     -- need to unpack batch, iterate each sample to loss one by one, due to viariant sequence length problem
     -- eventhough we padded zeros to the sequence, we don't want to forwad those zeros
     -- unpack done in LMClassNLLCriterion
-    local loss = criterion:forward(outputs, targets)
-    --local loss1 = crit1:forward(outputs, targets)
-    --print ("loss1 is:", loss1)
-    --local loss2 = crit2:forward(outputs, targets)
-    --print ("loss2 is:", loss2)
-    --sumErr = sumErr + loss1 + opt.lamda*loss2
-    --print ("Total Loss is:", sumErr)
-    print ("loss is", loss)
-    io.read(1)
+    --local loss = criterion:forward(outputs, targets)
+    local loss1 = crit1:forward(outputs, targets)
+    print ("loss1 is:", loss1)
+    local loss2 = crit2:forward(outputs, targets)
+    print ("loss2 is:", loss2)
+    sumErr = sumErr + loss1 + opt.lamda*loss2
+    print ("Total Loss is:", sumErr)
 
-    -- backward
-    --local gradOutput1 = crit1:backward(outputs, targets)
-    --local gradOutput2 = crit2:backward(outputs, targets)
-    --local grad_loss = nn.utils.recursiveAdd(grad_loss1, opt.lamda, grad_loss2)
-    print ("======> Back propagation")
-    local gradOutput = criterion:updateOutput(outputs, targets)
-    print ("gradOutput is ", gradOutput)
     io.read(1)
+    -- backward
+    print ("======> Back propagation")
+    -- backward through multiple loss
+    local gradOutput1 = crit1:backward(outputs, targets)
+    --print ("gradOutput1:", gradOutput1)
+    local gradOutput2 = crit2:backward(outputs, targets)
+    --print ("gradOutput2:", gradOutput2)
+    local gradOutputs = utils.addGradLosses(gradOutput1, gradOutput2)
+    --print ("gradOutputs:", gradOutputs)
+    --local gradOutput = criterion:updateOutput(outputs, targets)
+
+    -- backward through the model
     agent:zeroGradParameters()
-    agent:backward(inputs, grad_loss)
+    agent:backward(inputs, gradOutputs)
     print ("HHHHHHHH")
     io.read(1)
 
@@ -272,7 +262,7 @@ while true do -- run forever until reach max_iters
 	opt.learningRate = math.max(opt.learningRate, opt.minLR)
     end
     
-    -- cross validation
+    -- cross validation & save model
     if iter % opt.eval_every_iter == 0 then
 	-- eval performance on validation set
 

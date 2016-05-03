@@ -13,11 +13,12 @@ function BLEUReward:__init(args)
     parent.__init(self)
     self.module = args.module -- so it can call module:reinforce(reward)
     self.scale = args.scale or 1 -- scale of reward
-    self.criterion = nn.MSECriterion() -- baseline criterion --#TODO: check whether should be MSECriterion
+    self.criterion = nn.MSECriterion() -- baseline criterion --#TODO: check whether should be MSECriterion --> Done, yes
     self.sizeAverage = true
     self.gradInput = {}
     self.reward = {}
     self.vocab = args.vocab -- vocab is ix_to_word
+    self.vocab_size = utils.count_keys(self.vocab)
     -- reward_signal can be : 1 --> BLEU1, 2 --> BLEU2, 3 --> BLEU3 , 4 --> BLEU4, and 5 --> BLEU_avg
     self.BleuScorer = BleuScorer{single_sample=true, reward_signal=args.reward_signal}
 end
@@ -31,15 +32,18 @@ function BLEUReward:int2word(index)
     end
 end
 
-function BLEUReward:updateOutput(input, target)
-    assert(torch.type(input) == 'table')
+function BLEUReward:updateOutput(inputTable, target)
+    assert(torch.type(inputTable) == 'table')
+
+    --print ("input:", inputTable)
+    --print ("target:", target)
+    --io.read(1)
 
     self.batch_size = target:size(1)
     self.nStep = target:size(2) 
-    self.vocab_size = input[1][1]:size(2)-1 -- first [1] is the 1 time step; second [1] is the 1 element;
-					  -- size(2) is the vocab_size+1
-    local inputs = utils.reformat(input, self.batch_size, self.nStep)
-    self.reward = torch.DoubleTensor(self.batch_size,1):zero()
+    local inputs = inputTable[1] -- fetch the probs; the baseline reward need not to be used during the forward
+    local inputs = utils.reformat(inputs, self.batch_size, self.nStep)
+    self.reward = torch.DoubleTensor(self.batch_size):zero()
 
     for i = 1, self.batch_size do
 	--print ("sample", i)
@@ -48,7 +52,7 @@ function BLEUReward:updateOutput(input, target)
 	local generated_sentence = ""
 	local ground_truth_sentence = ""
 	for t = 1, self.nStep do
-	    self.BleuScorer:reset() -- reset --#TODO: should I reset??? --> yes
+	    self.BleuScorer:reset() -- reset --#TODO: should I reset??? --> Done, yes
 	    -- ground_truth_sentence.append(word)
 	    local ref_word_idx_t = target[i][t]
 	    if ref_word_idx_t == 0 then -- if padding 0
@@ -66,31 +70,24 @@ function BLEUReward:updateOutput(input, target)
 	end
 	--generated_sentence = ground_truth_sentence
 	self.BleuScorer:_add(generated_sentence, ground_truth_sentence)
-	print ("generated_sentence:", generated_sentence)
-	print ("ground_truth_sentence:", ground_truth_sentence)
+	--print ("generated_sentence:", generated_sentence)
+	--print ("ground_truth_sentence:", ground_truth_sentence)
 	reward = self.BleuScorer:compute_score()
-	print ("reward:", reward)
-	io.read(1)
+	--print ("reward:", reward)
+	--io.read(1)
 	self.reward[i] = reward
     end
 
     self.reward:mul(self.scale)
-    self.output = -self.reward:sum()
-    --self.output = reward -- or self.output = -reward ??
+    --#TODO: should I maximize the BLEU reward or minimize the -BLEU, according to NLL loss?
+    --self.output = -self.reward:sum()
+    self.output = self.reward:sum() -- or self.output = -reward ??
     return self.output
 end
 
 function BLEUReward:updateGradInput(inputTable, target)
-    local input22_t1 = inputTable[1][2][2]
-    local baseline_reward = torch.DoubleTensor(self.batch_size,1):zero()
-    for k, v in pairs(inputTable) do
-	if k ~= 1 then 
-	    local input22 = v[2][2]
-	    assert (utils.roundToNthDecimal(input22[1][1]) == utils.roundToNthDecimal(input22_t1[1][1])) -- error if baseline rewards does not match in each timestep
-	end
-    end
-
-    local baseline_reward = inputTable[self.nStep][2][2]
+    assert(torch.type(inputTable) == 'table', "error data type for BLEUReward backward")
+    local baseline_reward = inputTable[2] -- fetch the baseline reward
     self.vrReward = self.vrReward or self.reward.new()
     self.vrReward:resizeAs(self.reward):copy(self.reward)
     self.vrReward:add(-1, baseline_reward)
@@ -98,15 +95,12 @@ function BLEUReward:updateGradInput(inputTable, target)
     -- broadcast reward to modules
     self.module:reinforce(self.vrReward)
 
-    --for i = 1, self.nStep do
-    --    local temp_gradInput = { torch.Tensor() }
-    --	temp_gradInput[1] = torch.DoubleTensor(self.batch_size, self.vocab_size+1):zero()
-    --	temp_gradInput[2] = torch.DoubleTensor(self.batch_size, 1):zero()
-    --	temp_gradInput[2] = self.criterion:backward(baseline_reward, self.reward)
-    --    table.insert(self.gradInput, temp_gradInput)
-    --end
+    -- format the gradInput
+    self.gradInput[1] = {}
+    for i = 1, self.nStep do -- 0 grads for the NLL
+	table.insert(self.gradInput[1], torch.DoubleTensor(self.batch_size, self.vocab_size+1):zero())
+    end
 
-    self.gradInput[1] = torch.DoubleTensor(self.batch_size, self.vocab_size+1):zero()
     self.gradInput[2] = torch.DoubleTensor(self.batch_size, 1):zero()
     self.gradInput[2] = self.criterion:backward(baseline_reward, self.reward)
 

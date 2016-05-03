@@ -10,15 +10,15 @@ function LMClassNLLCriterion:__init(args)
     self.vocab_size = utils.count_keys(self.vocab)
 end
 
-function LMClassNLLCriterion:updateOutput(inputs, targets) -- criterion forward
+function LMClassNLLCriterion:updateOutput(inputTable, targets) -- criterion forward
     
-   -- print (inputs)
-   -- print ("up is inputs")
-   -- io.read(1) 
-   -- print (targets)
-   -- print ("up is targets")
-   -- io.read(1)
-
+    --print (inputTable)
+    --print ("up is inputs")
+    --io.read(1) 
+    --print (targets)
+    --print ("up is targets")
+    --io.read(1)
+    local inputs = inputTable[1] -- the probs
     self.nStep = table.getn(inputs)
 
     self.batchSize = targets:size(1)
@@ -29,9 +29,9 @@ function LMClassNLLCriterion:updateOutput(inputs, targets) -- criterion forward
     -- need to reformat the inputs in batch x timestep, rather than timestep x batch
     inputs = utils.reformat(inputs, self.batchSize, self.nStep)
 
-   -- print ("inputs after reformat")
-   -- print (inputs)
-   -- io.read(1)
+    --print ("input after reformat")
+    --print (inputs)
+    --io.read(1)
 
     -- set the gradInput after the reformat of inputs
     self.gradInput:resizeAs(inputs):zero()
@@ -61,10 +61,10 @@ function LMClassNLLCriterion:updateOutput(inputs, targets) -- criterion forward
     self.output = sum_loss / n
     self.gradInput:div(n)
     self.gradInput = self:reformat_gradInput(self.gradInput)
-    print (self.output)
-    io.read(1)
-    print (self.gradInput)
-    io.read(1)
+    --print (self.output)
+    --io.read(1)
+    --print (self.gradInput)
+    --io.read(1)
     return self.output 
 end
 
