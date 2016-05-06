@@ -46,42 +46,53 @@ function BLEUReward:updateOutput(inputTable, target)
     self.reward = torch.DoubleTensor(self.batch_size):zero()
 
     for i = 1, self.batch_size do
+	self.BleuScorer:reset() -- reset --#TODO: should I reset??? --> Done, yes
 	--print ("sample", i)
 	local reward = 0
 	local sample = inputs[i]
 	local generated_sentence = ""
 	local ground_truth_sentence = ""
-	for t = 1, self.nStep do
-	    self.BleuScorer:reset() -- reset --#TODO: should I reset??? --> Done, yes
-	    -- ground_truth_sentence.append(word)
-	    local ref_word_idx_t = target[i][t]
+
+	for t = 1, self.nStep do  -- ground_truth_sentence.append(word)
+	    --local ref_word_idx_t = target[i][t]
+	    ref_word_idx_t = target[i][t]
 	    if ref_word_idx_t == 0 then -- if padding 0
-		break -- also skip the generated, because we don't want to account for the 0 paddings
+		break
 	    end
 	    local ref_word_t = self.vocab[tostring(ref_word_idx_t)]
 	    ground_truth_sentence = ground_truth_sentence .. " " ..  ref_word_t 
-
-	    -- generated_sentence.append(word)
-	    local gen_word_prob_t = sample[t] -- generated word probobility at timestep t
-	    local _, gen_word_t = torch.max(gen_word_prob_t, 1)
-	    gen_word_t = self.vocab[tostring(gen_word_t[1])] --unpack and get the word by index
-	    if not gen_word_t then break end -- END token, break the generated sentence here
-	    generated_sentence = generated_sentence .. " " .. gen_word_t --append word, insert space in between
 	end
+
+	for t = 1, self.nStep do -- generated_sentence.append(word)
+	    local gen_word_prob_t = sample[t] -- generated word probobility at timestep t
+	    local _, gen_word_idx_t = torch.max(gen_word_prob_t, 1)
+	    if gen_word_t == self.vocab_size+1 then print ("Test here") io.read(1)  break end
+	    gen_word_t = self.vocab[tostring(gen_word_idx_t[1])] --unpack and get the word by index
+	    if gen_word_t then -- only concatenarte if gen_word_t is not vocab_size + 1
+		generated_sentence = generated_sentence .. " " .. gen_word_t --append word, insert space in between
+	    end
+	end
+
 	--generated_sentence = ground_truth_sentence
 	self.BleuScorer:_add(generated_sentence, ground_truth_sentence)
-	--print ("generated_sentence:", generated_sentence)
-	--print ("ground_truth_sentence:", ground_truth_sentence)
+	print ("generated_sentence:", generated_sentence, utils.count_word((generated_sentence)))
+	print ("ground_truth_sentence:", ground_truth_sentence, utils.count_word(ground_truth_sentence))
 	reward = self.BleuScorer:compute_score()
 	--print ("reward:", reward)
 	--io.read(1)
+	if reward >= 0.4 then -- thresh
+	    reward = 1
+	else
+	    reward = 0
+	end
 	self.reward[i] = reward
     end
 
     self.reward:mul(self.scale)
     --#TODO: should I maximize the BLEU reward or minimize the -BLEU, according to NLL loss?
-    --self.output = -self.reward:sum()
     self.output = self.reward:sum() -- or self.output = -reward ??
+    --self.output = -self.reward:sum()
+    self.output = self.output / self.batch_size
     return self.output
 end
 
@@ -90,6 +101,8 @@ function BLEUReward:updateGradInput(inputTable, target)
     local baseline_reward = inputTable[2] -- fetch the baseline reward
     self.vrReward = self.vrReward or self.reward.new()
     self.vrReward:resizeAs(self.reward):copy(self.reward)
+    --print ("____________> baseline reward:")
+    --print (baseline_reward)
     self.vrReward:add(-1, baseline_reward)
 
     -- broadcast reward to modules

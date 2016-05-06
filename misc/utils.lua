@@ -80,6 +80,7 @@ function utils.reformat(inputs, batchSize, nStep)
     return outputs
 end
 
+
 function utils.roundToNthDecimal(num, n)
     local mult = 10^(n or 0)
     return math.floor(num*mult+0.5) / mult
@@ -96,5 +97,16 @@ function utils.addGradLosses(gradloss1, gradloss2)
     
     return gradloss
 end
+
+function utils.count_word(str)
+-- given a string, return the number of words in it
+-- e.g, "a dog running", return 3
+    local count = 0
+    for word in string.gmatch(str,"%S+") do
+	count = count + 1
+    end
+    return count
+end
+
 return utils
 

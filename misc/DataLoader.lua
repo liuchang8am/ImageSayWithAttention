@@ -181,18 +181,18 @@ function DataLoader:getBatch(opt)
   data.batchSize = batch_size*seq_per_img
 
   -- debug
- -- local image = require("image")
- -- for i = 1, inputs[1]:size(1) do
- --   local img = inputs[1][i]
- --   local sentence = inputs[2][i]
- --   for j = 1, sentence:size(1) do
- --     local word = self.ix_to_word[tostring(sentence[j])]
- --     print (word)
- --   end
- --   print ("\n")
- --   image.display(img)
- --   io.read(1)
- -- end
+  --local image = require("image")
+  --for i = 1, inputs[1]:size(1) do
+  --  local img = inputs[1][i]
+  --  local sentence = inputs[2][i]
+  --  for j = 1, sentence:size(1) do
+  --    local word = self.ix_to_word[tostring(sentence[j])]
+  --    print (word)
+  --  end
+  --  print ("\n")
+  --  image.display(img)
+  --  --io.read(1)
+  --end
 
   return data
 end

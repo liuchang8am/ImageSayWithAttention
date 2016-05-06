@@ -48,7 +48,8 @@ function LMClassNLLCriterion:updateOutput(inputTable, targets) -- criterion forw
 	    if target ~= 0 then 
 		loss = self.criterion:forward(input, target)
 		self.gradInput[{batch, step, target}] = -1
-		sum_loss = sum_loss - loss--accumulate loss
+		--sum_loss = sum_loss - loss--accumulate loss
+		sum_loss = sum_loss + loss--accumulate loss
 		n = n + 1 -- accumulate if it's a valid loss computation
 	    end
 	end

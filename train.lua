@@ -4,14 +4,14 @@ require 'image'
 require 'dpnn'
 local utils = require 'misc.utils'
 --user-defined packages
-require './misc/DataLoader' -- load dataset 'flickr8k', Ffickr30k or coco 
+require 'misc.DataLoader' -- load dataset 'flickr8k', Ffickr30k or coco 
 require './lib/RecurrentAttentionCaptioner'
 --require './lib/VRCIDErReward' -- variance reduced CIDEr reward #TODO: change to BLEU4 if CIDEr fails --> Done
 require './lib/BLEUReward' -- BLEU reward
 require './lib/LMClassNLLCriterion' -- NLL language loss
 --require 'lib/LMCriterion'
 
-local debug = true
+local debug = false
 
 -------------------------------------------
 --- command line parameters
@@ -30,7 +30,7 @@ cmd:option('--minLR', 0.00001, 'minimum learning rate')
 cmd:option('--momentum', 0.9, 'momentum')
 cmd:option('--maxOutNorm', -1, 'max norm each layers output neuron weights')
 cmd:option('--cutoffNorm', -1, 'max l2-norm of contatenation of all gradParam tensors')
-cmd:option('--batchSize', 10, 'number of examples per batch') -- actual batch size is this batchSize * 5, where 5 is 5 sentences / image; this parameter should be >= 1
+cmd:option('--batchSize', 2, 'number of examples per batch') -- actual batch size is this batchSize * 5, where 5 is 5 sentences / image; this parameter should be >= 1
 cmd:option('--gpuid', -1, 'sets the device (GPU) to use. -1 = CPU')
 cmd:option('--max_iters', -1, 'maximum iterations to run, -1 = forever')
 cmd:option('--transfer', 'ReLU', 'activation function')
@@ -45,15 +45,15 @@ cmd:option('--eval_use_image', 100, 'eval using __ images in validation set')
 cmd:option('--lamda', 1, 'lamda that balances the two losses, i.e., NLL and Reward')
 
 -- reinforce
-cmd:option('--rewardScale', 100, "scale of positive reward (negative is 0)")
+cmd:option('--rewardScale', 1, "scale of positive reward (negative is 0)")
 cmd:option('--unitPixels', 127, "the locator unit (1,1) maps to pixels (13,13), or (-1,-1) maps to (-13,-13)")
 cmd:option('--locatorStd', 0.11, 'stdev of gaussian location sampler (between 0 and 1) (low values may cause NaNs)')
 cmd:option('--stochastic', false, 'Reinforce modules forward inputs stochastically during evaluation')
-cmd:option('--reward_signal', 5, "reward_signal can be : 1 --> BLEU1, 2 --> BLEU2, 3 --> BLEU3 , 4 --> BLEU4, and 5 --> BLEU_avg")
+cmd:option('--reward_signal', 4, "reward_signal can be : 1 --> BLEU1, 2 --> BLEU2, 3 --> BLEU3 , 4 --> BLEU4, and 5 --> BLEU_avg")
 
 -- model info
 cmd:option('--glimpseHiddenSize', 128, 'size of glimpse hidden layer')
-cmd:option('--glimpsePatchSize', 32, 'size of glimpse patch at highest res (height = width)')
+cmd:option('--glimpsePatchSize', 128, 'size of glimpse patch at highest res (height = width)')
 cmd:option('--glimpseScale', 2, 'scale of successive patches w.r.t. original input image')
 cmd:option('--glimpseDepth', 1, 'number of concatenated downscaled patches')
 cmd:option('--locatorHiddenSize', 128, 'size of locator hidden layer')
@@ -109,7 +109,7 @@ glimpse = nn.Sequential()
 glimpse:add(nn.ConcatTable():add(locationSensor):add(glimpseSensor))
 glimpse:add(nn.JoinTable(1,1))
 glimpse:add(nn.Linear(opt.locatorHiddenSize+opt.glimpseHiddenSize, opt.imageHiddenSize))
---glimpse:add(nn[opt.transfer]())
+glimpse:add(nn[opt.transfer]())
 --glimpse:add(nn.Linear(opt.imageHiddenSize, opt.hiddenSize))
 
 -- 4.words embedding
@@ -120,6 +120,7 @@ wordsEmbedding:add(nn.SelectTable(3)) -- select the words
 wordsEmbedding:add(lookup)
 wordsEmbedding:add(nn.SplitTable(2)) 
 wordsEmbedding:add(nn.SelectTable(1))
+wordsEmbedding:add(nn[opt.transfer]())
 
 -- 5.multimadalEmbedding
 multimodalEmbedding = nn.Sequential()
@@ -185,15 +186,8 @@ if opt.uniform > 0 then
 end
 
 --- Set the Cirterion ---
---local crit1 = nn.SequencerCriterion(nn.ClassNLLCriterion())
 local crit1 = nn.LMClassNLLCriterion{vocab=ds.ix_to_word}
---local crit2 = nn.VRCIDErReward(agent, opt.rewardScale, ds.ix_to_word)
-
 local crit2 = nn.BLEUReward{module=agent, scale=opt.rewardScale, vocab=ds.ix_to_word, reward_signal=opt.reward_signal}
-
---local criterion = nn.ParallelCriterion(true)
---    :add(nn.ModuleCriterion(crit1, nil, nn.Convert()))
---    :add(nn.ModuleCriterion(crit2, nil, nn.Convert()))
 
 --print ("Agent:")
 --print (agent)
@@ -240,7 +234,6 @@ while true do -- run forever until reach max_iters
     --print ("gradOutput2:", gradOutput2)
     local gradOutputs = utils.addGradLosses(gradOutput1, gradOutput2)
     --print ("gradOutputs:", gradOutputs)
-    --local gradOutput = criterion:updateOutput(outputs, targets)
 
     -- backward through the model
     agent:zeroGradParameters()
