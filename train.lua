@@ -30,7 +30,7 @@ cmd:option('--minLR', 0.00001, 'minimum learning rate')
 cmd:option('--momentum', 0.9, 'momentum')
 cmd:option('--maxOutNorm', -1, 'max norm each layers output neuron weights')
 cmd:option('--cutoffNorm', -1, 'max l2-norm of contatenation of all gradParam tensors')
-cmd:option('--batchSize', 2, 'number of examples per batch') -- actual batch size is this batchSize * 5, where 5 is 5 sentences / image; this parameter should be >= 1
+cmd:option('--batchSize', 20, 'number of examples per batch') -- actual batch size is this batchSize * 5, where 5 is 5 sentences / image; this parameter should be >= 1
 cmd:option('--gpuid', -1, 'sets the device (GPU) to use. -1 = CPU')
 cmd:option('--max_iters', -1, 'maximum iterations to run, -1 = forever')
 cmd:option('--transfer', 'ReLU', 'activation function')
@@ -195,6 +195,7 @@ local crit2 = nn.BLEUReward{module=agent, scale=opt.rewardScale, vocab=ds.ix_to_
 local iter = 0
 --- Start training! ---
 while true do -- run forever until reach max_iters
+    agent:training()
     print ("===========> Iter:", iter)
     local sumErr = 0
 

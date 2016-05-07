@@ -48,8 +48,8 @@ function LMClassNLLCriterion:updateOutput(inputTable, targets) -- criterion forw
 	    if target ~= 0 then 
 		loss = self.criterion:forward(input, target)
 		self.gradInput[{batch, step, target}] = -1
-		--sum_loss = sum_loss - loss--accumulate loss
-		sum_loss = sum_loss + loss--accumulate loss
+		sum_loss = sum_loss - loss--accumulate loss
+		--sum_loss = sum_loss + loss--accumulate loss
 		n = n + 1 -- accumulate if it's a valid loss computation
 	    end
 	end
@@ -64,6 +64,10 @@ function LMClassNLLCriterion:updateOutput(inputTable, targets) -- criterion forw
     return self.output 
 end
 
+function LMClassNLLCriterion:updateGradInput(input, targets) -- criterion backward
+    return self.gradInput
+end
+
 function LMClassNLLCriterion:reformat_gradInput(gradInput) -- gradInput is batchSize x nStep x vocab_size
     local output = {}
     for step = 1, self.nStep do
@@ -71,9 +75,5 @@ function LMClassNLLCriterion:reformat_gradInput(gradInput) -- gradInput is batch
 	table.insert(output, temp)
     end
     return output
-end
-
-function LMClassNLLCriterion:updateGradInput(input, targets) -- criterion backward
-    return self.gradInput
 end
 
