@@ -70,14 +70,43 @@ end
 
 function utils.reformat(inputs, batchSize, nStep)
     -- reformat the inputs, i.e., the outputs of the agent model for convinient loop
-    local D = inputs[1][1]:size(2)
+    local D = inputs[1]:size(2)
     local outputs = torch.Tensor(batchSize, nStep, D)
     for batch = 1, batchSize do
 	for step = 1, nStep do
-	    outputs[{batch, step}] = inputs[step][1][batch]    
+	    outputs[{batch, step}] = inputs[step][batch]    
 	end
     end
     return outputs
 end
 
+
+function utils.roundToNthDecimal(num, n)
+    local mult = 10^(n or 0)
+    return math.floor(num*mult+0.5) / mult
+end
+
+function utils.addGradLosses(gradloss1, gradloss2)
+    -- loss1 is LM loss, loss2 is reward, add corresponding part
+    assert (torch.type(gradloss1) == "table", "LM loss outputs should be table")
+    assert (torch.type(gradloss2) == "table", "Reward loss outputs should be table")
+
+    local gradloss = {}
+    table.insert(gradloss, gradloss1)
+    table.insert(gradloss, gradloss2[2]) -- loss2[1] is always 0
+    
+    return gradloss
+end
+
+function utils.count_word(str)
+-- given a string, return the number of words in it
+-- e.g, "a dog running", return 3
+    local count = 0
+    for word in string.gmatch(str,"%S+") do
+	count = count + 1
+    end
+    return count
+end
+
 return utils
+

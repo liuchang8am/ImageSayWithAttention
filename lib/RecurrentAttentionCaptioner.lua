@@ -43,12 +43,17 @@ function RecurrentAttentionCaptioner:updateOutput(inputs)
 
    for step=1,self.nStep do --self.nStep is opt.rho value
       
-      print ("RecurrentAttentionCaptioner step = ", step) --io.read(1)
+      --print ("RecurrentAttentionCaptioner step = ", step) --io.read(1)
       
       if step == 1 then
          -- sample an initial starting actions by forwarding zeros through the action
          self._initInput = self._initInput or input.new()
          self._initInput:resize(input:size(1),table.unpack(self.hiddenSize)):zero()
+	 --print (self._initInput)
+	 --print ("self._initInput")
+	 --io.read(1)
+	 --print (self.action)
+	 --io.read(1)
          self.actions[1] = self.action:updateOutput(self._initInput)
 	 --print ("self.actions[1]")
 	 --print (self.actions[1])
@@ -64,19 +69,28 @@ function RecurrentAttentionCaptioner:updateOutput(inputs)
       --self.output[step] = self.forwardActions and {output, self.actions[step]} or output
       self.output[step] = output
    end
-   
+
+  -- print (self.output)
+  -- print ("up is self.output in RecurrentAttentionCaptioner")
+  -- io.read(1)
+
    return self.output
 end
 
-function RecurrentAttentionCaptioner:updateGradInput(input, gradOutput)
+function RecurrentAttentionCaptioner:updateGradInput(inputs, gradOutput)
    assert(self.rnn.step - 1 == self.nStep, "inconsistent rnn steps")
    assert(torch.type(gradOutput) == 'table', "expecting gradOutput table")
    assert(#gradOutput == self.nStep, "gradOutput should have nStep elements")
+
+   local input = inputs[1]:double() -- input is BCHW raw images
+   local words = inputs[2]:double() -- words
     
    -- back-propagate through time (BPTT)
    for step=self.nStep,1,-1 do
+      --print ("---------> BPTT step", step)
       -- 1. backward through the action layer
       local gradOutput_, gradAction_ = gradOutput[step]
+
       if self.forwardActions then
          gradOutput_, gradAction_ = unpack(gradOutput[step])
       else
@@ -104,14 +118,18 @@ function RecurrentAttentionCaptioner:updateGradInput(input, gradOutput)
       end
       
       -- 2. backward through the rnn layer
-      local gradInput = self.rnn:updateGradInput({input, self.actions[step]}, self.gradHidden[step])[1]
+      word = words[{{}, {step}}] -- select word [i]
+      local gradInput = self.rnn:updateGradInput({input, self.actions[step]}, self.gradHidden[step])[1] --#TODO: add word or not??
+      --local gradInput = self.rnn:updateGradInput({input, self.actions[step], word}, self.gradHidden[step])[1]
+      --print ("gradInput outputs by self.rnn:updateGradInput")
+      --print (torch.min(gradInput))
+      --io.read(1)
       if step == self.nStep then
          self.gradInput:resizeAs(gradInput):copy(gradInput)
       else
          self.gradInput:add(gradInput)
       end
    end
-
    return self.gradInput
 end
 

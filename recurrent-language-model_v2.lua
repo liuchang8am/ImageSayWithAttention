@@ -35,7 +35,7 @@ cmd:option('--seqlen', 7, 'sequence length : back-propagate through time (BPTT) 
 cmd:option('--hiddensize', '{20}', 'number of hidden units used at output of each recurrent layer. When more than one is specified, RNN/LSTMs/GRUs are stacked')
 cmd:option('--dropout', 0, 'apply dropout with this probability after each rnn layer. dropout <= 0 disables it.')
 -- data
-cmd:option('--batchsize', 1, 'number of examples per batch')
+cmd:option('--batchsize', 100, 'number of examples per batch')
 cmd:option('--trainsize', 100, 'number of train examples seen between each epoch')
 cmd:option('--validsize', 10, 'number of valid examples used for early stopping and cross-validation') 
 cmd:option('--savepath', paths.concat(dl.SAVE_PATH, 'rnnlm'), 'path to directory where experiment log (includes model) will be saved')
@@ -185,20 +185,19 @@ while opt.maxepoch <= 0 or epoch <= opt.maxepoch do
    local sumErr = 0
    for i, inputs, targets in trainset:subiter(opt.seqlen, opt.trainsize) do
 
-      print ("i is:", i)
+      --print ("i is:", i)
 
       targets = targetmodule:forward(targets)
       
       -- forward
       local outputs = lm:forward(inputs)
       local err = criterion:forward(outputs, targets)
-      print ("err")
-      print (err)
-      io.read(1)
+
       sumErr = sumErr + err
       
       -- backward 
       local gradOutputs = criterion:backward(outputs, targets)
+
       lm:zeroGradParameters()
       lm:backward(inputs, gradOutputs)
       
@@ -220,6 +219,7 @@ while opt.maxepoch <= 0 or epoch <= opt.maxepoch do
 
    end
    
+   print ("loss:", sumErr)
    -- learning rate decay
    if opt.schedule then
       opt.lr = opt.schedule[epoch] or opt.lr
