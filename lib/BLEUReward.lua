@@ -21,6 +21,7 @@ function BLEUReward:__init(args)
     self.vocab_size = utils.count_keys(self.vocab)
     -- reward_signal can be : 1 --> BLEU1, 2 --> BLEU2, 3 --> BLEU3 , 4 --> BLEU4, and 5 --> BLEU_avg
     self.BleuScorer = BleuScorer{single_sample=true, reward_signal=args.reward_signal}
+	self.gpuid = args.gpuid
 end
 
 function BLEUReward:int2word(index)
@@ -42,8 +43,12 @@ function BLEUReward:updateOutput(inputTable, target)
     self.batch_size = target:size(1)
     self.nStep = target:size(2) 
     local inputs = inputTable[1] -- fetch the probs; the baseline reward need not to be used during the forward
-    local inputs = utils.reformat(inputs, self.batch_size, self.nStep)
-    self.reward = torch.DoubleTensor(self.batch_size):zero()
+    local inputs = utils.reformat(inputs, self.batch_size, self.nStep, self.gpuid)
+	if self.gpuid >= 0 then 
+	    self.reward = torch.CudaTensor(self.batch_size):zero()
+	else
+        self.reward = torch.DoubleTensor(self.batch_size):zero()
+	end
 
     for i = 1, self.batch_size do
 	self.BleuScorer:reset() -- reset --#TODO: should I reset??? --> Done, yes
@@ -75,16 +80,16 @@ function BLEUReward:updateOutput(inputTable, target)
 
 	--generated_sentence = ground_truth_sentence
 	self.BleuScorer:_add(generated_sentence, ground_truth_sentence)
-	print ("generated_sentence:", generated_sentence, utils.count_word((generated_sentence)))
-	print ("ground_truth_sentence:", ground_truth_sentence, utils.count_word(ground_truth_sentence))
+	--print ("generated_sentence:", generated_sentence, utils.count_word((generated_sentence)))
+	--print ("ground_truth_sentence:", ground_truth_sentence, utils.count_word(ground_truth_sentence))
 	reward = self.BleuScorer:compute_score()
 	--print ("reward:", reward)
 	--io.read(1)
-	if reward >= 0.4 then -- thresh
-	    reward = 1
-	else
-	    reward = 0
-	end
+	--if reward >= 0.4 then -- thresh
+	--    reward = 1
+	--else
+	--    reward = 0
+	--end
 	self.reward[i] = reward
     end
 
@@ -101,8 +106,6 @@ function BLEUReward:updateGradInput(inputTable, target)
     local baseline_reward = inputTable[2] -- fetch the baseline reward
     self.vrReward = self.vrReward or self.reward.new()
     self.vrReward:resizeAs(self.reward):copy(self.reward)
-    --print ("____________> baseline reward:")
-    --print (baseline_reward)
     self.vrReward:add(-1, baseline_reward)
 
     -- broadcast reward to modules
@@ -110,11 +113,18 @@ function BLEUReward:updateGradInput(inputTable, target)
 
     -- format the gradInput
     self.gradInput[1] = {}
-    for i = 1, self.nStep do -- 0 grads for the NLL
-	table.insert(self.gradInput[1], torch.DoubleTensor(self.batch_size, self.vocab_size+1):zero())
-    end
+	if self.gpuid >= 0 then
+	    for i=1, self.nStep do
+		    table.insert(self.gradInput[1], torch.CudaTensor(self.batch_size, self.vocab_size+1):zero())
+		end
+        self.gradInput[2] = torch.CudaTensor(self.batch_size, 1):zero()
+	else
+        for i = 1, self.nStep do -- 0 grads for the NLL
+	        table.insert(self.gradInput[1], torch.DoubleTensor(self.batch_size, self.vocab_size+1):zero())
+        end
+        self.gradInput[2] = torch.DoubleTensor(self.batch_size, 1):zero()
+	end
 
-    self.gradInput[2] = torch.DoubleTensor(self.batch_size, 1):zero()
     self.gradInput[2] = self.criterion:backward(baseline_reward, self.reward)
 
     return self.gradInput

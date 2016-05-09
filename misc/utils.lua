@@ -68,15 +68,23 @@ function utils.average_values(t)
   return vsum / n
 end
 
-function utils.reformat(inputs, batchSize, nStep)
+function utils.reformat(inputs, batchSize, nStep, gpuid)
     -- reformat the inputs, i.e., the outputs of the agent model for convinient loop
+
     local D = inputs[1]:size(2)
-    local outputs = torch.Tensor(batchSize, nStep, D)
-    for batch = 1, batchSize do
-	for step = 1, nStep do
-	    outputs[{batch, step}] = inputs[step][batch]    
+	local outputs
+    if gpuid >= 0 then 
+        outputs = torch.CudaTensor(batchSize, nStep, D)
+	else
+        outputs = torch.Tensor(batchSize, nStep, D)
 	end
+
+    for batch = 1, batchSize do
+	    for step = 1, nStep do
+	        outputs[{batch, step}] = inputs[step][batch]    
+	    end
     end
+
     return outputs
 end
 

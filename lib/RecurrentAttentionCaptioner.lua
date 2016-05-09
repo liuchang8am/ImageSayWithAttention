@@ -1,4 +1,4 @@
-local RecurrentAttentionCaptioner, parent = torch.class("nn.RecurrentAttentionCaptioner", "nn.Container")
+local RecurrentAttentionCaptioner, parent = torch.class("nn.RecurrentAttentionCaptioner", "nn.AbstractSequencer")
 
 function RecurrentAttentionCaptioner:__init(rnn, action, nStep, hiddenSize)
    parent.__init(self)
@@ -30,8 +30,8 @@ function RecurrentAttentionCaptioner:updateOutput(inputs)
    self.rnn:forget()
    self.action:forget()
 
-   local input = inputs[1]:double() -- input is BCHW raw images
-   local words = inputs[2]:double() -- words
+   local input = inputs[1] -- input is BCHW raw images
+   local words = inputs[2] -- words
 
    local nDim = input:dim()
 
@@ -49,15 +49,7 @@ function RecurrentAttentionCaptioner:updateOutput(inputs)
          -- sample an initial starting actions by forwarding zeros through the action
          self._initInput = self._initInput or input.new()
          self._initInput:resize(input:size(1),table.unpack(self.hiddenSize)):zero()
-	 --print (self._initInput)
-	 --print ("self._initInput")
-	 --io.read(1)
-	 --print (self.action)
-	 --io.read(1)
          self.actions[1] = self.action:updateOutput(self._initInput)
-	 --print ("self.actions[1]")
-	 --print (self.actions[1])
-	 --io.read(1)
       else
          -- sample actions from previous hidden activation (rnn output)
          self.actions[step] = self.action:updateOutput(self.output[step-1])
@@ -66,14 +58,8 @@ function RecurrentAttentionCaptioner:updateOutput(inputs)
       -- rnn handles the recurrence internally
       word = words[{{}, {step}}] -- select word [i]
       local output = self.rnn:updateOutput{{input, self.actions[step]}, word}
-      --local output = self.rnn:updateOutput{input, self.actions[step]}
-      --self.output[step] = self.forwardActions and {output, self.actions[step]} or output
       self.output[step] = output
    end
-
-  -- print (self.output)
-  -- print ("up is self.output in RecurrentAttentionCaptioner")
-  -- io.read(1)
 
    return self.output
 end
@@ -83,8 +69,8 @@ function RecurrentAttentionCaptioner:updateGradInput(inputs, gradOutput)
    assert(torch.type(gradOutput) == 'table', "expecting gradOutput table")
    assert(#gradOutput == self.nStep, "gradOutput should have nStep elements")
 
-   local input = inputs[1]:double() -- input is BCHW raw images
-   local words = inputs[2]:double() -- words
+   local input = inputs[1] -- input is BCHW raw images
+   local words = inputs[2] -- words
     
    -- back-propagate through time (BPTT)
    for step=self.nStep,1,-1 do
@@ -120,13 +106,7 @@ function RecurrentAttentionCaptioner:updateGradInput(inputs, gradOutput)
       
       -- 2. backward through the rnn layer
       word = words[{{}, {step}}] -- select word [i]
-      --print (input:size(), "up is input") io.read(1)
-      --print (self.actions[step], "up is self.actions[step]") io.read(1)
-      --print (self.gradHidden[step], "up is self.gradHidden[step]") io.read(1)
-      --local temp = self.rnn:updateGradInput({input, self.actions[step]}, self.gradHidden[step])
-      --print ("temp", temp) io.read(1)
       local gradInput = self.rnn:updateGradInput({{input, self.actions[step]},word}, self.gradHidden[step])[1][1]
-      --local gradInput = self.rnn:updateGradInput({input, self.actions[step]}, self.gradHidden[step])[1] 
       if step == self.nStep then
          self.gradInput:resizeAs(gradInput):copy(gradInput)
       else
@@ -202,4 +182,8 @@ function RecurrentAttentionCaptioner:__tostring__()
    str = str .. line .. tab .. 'rnn     : ' .. tostring(self.rnn):gsub(line, line .. tab .. ext)
    str = str .. line .. '}'
    return str
+end
+
+function RecurrentAttentionCaptioner:cuda()
+   return self:type("torch.CudaTensor")
 end

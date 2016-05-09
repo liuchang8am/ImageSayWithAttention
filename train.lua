@@ -4,15 +4,14 @@ require 'image'
 require 'dpnn'
 local utils = require 'misc.utils'
 --user-defined packages
-require 'misc.DataLoader' -- load dataset 'flickr8k', Ffickr30k or coco 
-require './lib/RecurrentAttentionCaptioner'
+require 'lib.DataLoader' -- load dataset 'flickr8k', Ffickr30k or coco 
+require 'lib.RecurrentAttentionCaptioner'
+require 'lib.BLEUReward' -- BLEU reward
+require 'lib.LMClassNLLCriterion' -- NLL language loss
 require 'misc.LC'
---require './lib/VRCIDErReward' -- variance reduced CIDEr reward #TODO: change to BLEU4 if CIDEr fails --> Done
-require './lib/BLEUReward' -- BLEU reward
-require './lib/LMClassNLLCriterion' -- NLL language loss
---require 'lib/LMCriterion'
+require 'sys'
 
-local debug = true
+local debug = false
 
 -------------------------------------------
 --- command line parameters
@@ -23,7 +22,7 @@ cmd:text('Options')
 
 --- training options ---
 
-cmd:option('--dataset', 'Flickr8k', 'training on which dataset? Flickr8k, Flickr30k or MSCOCO')
+cmd:option('--dataset', 'coco', 'training on which dataset? Flickr8k, Flickr30k or MSCOCO')
 cmd:option('--learningRate', 0.0001, 'learning rate at t=0')
 cmd:option('--lr_decay_every_iter', 10000, 'decay learning rate every __ iter, by opt.lr_decay_factor')
 cmd:option('--lr_decay_factor', 10, 'decay learning rate by __')
@@ -31,8 +30,8 @@ cmd:option('--minLR', 0.00001, 'minimum learning rate')
 cmd:option('--momentum', 0.9, 'momentum')
 cmd:option('--maxOutNorm', -1, 'max norm each layers output neuron weights')
 cmd:option('--cutoffNorm', -1, 'max l2-norm of contatenation of all gradParam tensors')
-cmd:option('--batchSize', 1, 'number of examples per batch') -- actual batch size is this batchSize * 5, where 5 is 5 sentences / image; this parameter should be >= 1
-cmd:option('--gpuid', -1, 'sets the device (GPU) to use. -1 = CPU')
+cmd:option('--batch_size', 10, 'number of examples per batch') -- actual batch size is this batchSize * 5, where 5 is 5 sentences / image; this parameter should be >= 1
+cmd:option('--gpuid', 1, 'sets the device (GPU) to use. -1 = CPU')
 cmd:option('--max_iters', -1, 'maximum iterations to run, -1 = forever')
 cmd:option('--transfer', 'ReLU', 'activation function')
 cmd:option('--uniform', 0.1, 'initialize parameters using uniform distribution between -uniform and uniform. -1 means default initialization')
@@ -41,12 +40,13 @@ cmd:option('--progress', false, 'print progress bar')
 cmd:option('--silent', false, 'dont print anything to stdout')
 cmd:option('--eval_every_iter', 2000, 'eval on validation set every __ iter')
 cmd:option('--eval_use_image', 100, 'eval using __ images in validation set')
+cmd:option('--show_status_per_iter', 10, 'show training status every ? iters (avoid frequent print)')
 
 -- loss
 cmd:option('--lamda', 1, 'lamda that balances the two losses, i.e., NLL and Reward')
 
 -- reinforce
-cmd:option('--rewardScale', 1, "scale of positive reward (negative is 0)")
+cmd:option('--rewardScale', 10, "scale of positive reward (negative is 0)")
 cmd:option('--unitPixels', 127, "the locator unit (1,1) maps to pixels (13,13), or (-1,-1) maps to (-13,-13)")
 cmd:option('--locatorStd', 0.11, 'stdev of gaussian location sampler (between 0 and 1) (low values may cause NaNs)')
 cmd:option('--stochastic', false, 'Reinforce modules forward inputs stochastically during evaluation')
@@ -85,7 +85,7 @@ end
 local input_h5_file = data_path .. 'data.h5' -- h5 raw images file
 local input_json_file = data_path .. 'data.json' -- json sentences file
 
-local ds = DataLoader{h5_file=input_h5_file, json_file=input_json_file}
+local ds = DataLoader{h5_file=input_h5_file, json_file=input_json_file, gpuid=opt.gpuid}
 
 --- Define the Model ---
 -- model is an agent interacting with the environment(image)
@@ -113,7 +113,7 @@ glimpse:add(nn.SelectTable(1)) -- Select the {image, (x,y)}
 glimpse:add(nn.ConcatTable():add(locationSensor):add(glimpseSensor))
 glimpse:add(nn.JoinTable(1,1))
 glimpse:add(nn.Linear(opt.locatorHiddenSize+opt.glimpseHiddenSize, opt.imageHiddenSize))
---glimpse:add(nn[opt.transfer]())
+glimpse:add(nn[opt.transfer]())
 --glimpse:add(nn.Linear(opt.imageHiddenSize, opt.hiddenSize))
 
 -- 4.words embedding
@@ -124,7 +124,7 @@ wordsEmbedding:add(nn.SelectTable(2)) -- Select the words
 wordsEmbedding:add(lookup)
 wordsEmbedding:add(nn.SplitTable(2)) 
 wordsEmbedding:add(nn.SelectTable(1))
---wordsEmbedding:add(nn[opt.transfer]())
+wordsEmbedding:add(nn[opt.transfer]())
 
 -- 5.multimadalEmbedding
 multimodalEmbedding = nn.Sequential()
@@ -176,12 +176,6 @@ concat = nn.ConcatTable():add(nn.Identity()):add(seq)
 -- output will be : {{time*batch*classpred}, batch*basereward}}
 agent:add(concat)
 
--- if GPU then convert everything to cuda(), if possible
-if opt.gpuid > 0 then --#TODO: if GPU enabled, some function may fail in Captioner and LM loss
-    require 'cutorch'
-    require 'cunn'
-
-end
 
 if opt.uniform > 0 then
    for k,param in ipairs(agent:parameters()) do
@@ -190,22 +184,40 @@ if opt.uniform > 0 then
 end
 
 --- Set the Cirterion ---
-local crit1 = nn.LMClassNLLCriterion{vocab=ds.ix_to_word}
-local crit2 = nn.BLEUReward{module=agent, scale=opt.rewardScale, vocab=ds.ix_to_word, reward_signal=opt.reward_signal}
+local crit1 = nn.LMClassNLLCriterion{vocab=ds.ix_to_word, gpuid=opt.gpuid}
+local crit2 = nn.BLEUReward{module=agent, scale=opt.rewardScale, vocab=ds.ix_to_word, reward_signal=opt.reward_signal, gpuid=opt.gpuid}
 
 --print ("Agent:")
 --print (agent)
 
+-- if GPU then convert everything to cuda(), if possible
+if opt.gpuid < 0 then
+    print ("Training in CPU mode ...")
+elseif opt.gpuid >= 0 then --#TODO: if GPU enabled, some function may fail in Captioner and LM loss
+    require 'cunn'
+	require 'cutorch'
+	cutorch.setDevice(opt.gpuid)
+	agent:cuda()
+	crit1:cuda()
+	crit2:cuda()
+end
+
 local iter = 0
+local t = sys.clock()
+local time = 0
 --- Start training! ---
 while true do -- run forever until reach max_iters
     agent:training()
-    print ("===========> Iter:", iter)
+	sys.tic()
+
+	if iter % opt.show_status_per_iter == 0 then 
+        io.write ("===========> Iter:", iter, ' ')
+	end
     local sumErr = 0
 
     -- get a batch, not the actual batch_size that is forwarded is opt.batchSize * seq_per_img
     -- because each image has several (say, 5) sentences
-    local batch = ds:getBatch{batch_size=opt.batchSize, split='train', seq_per_img=opt.seq_per_img}
+    local batch = ds:getBatch{batch_size=opt.batch_size, split='train', seq_per_img=opt.seq_per_img}
     local inputs = batch.inputs -- inputs[1]: raw images in (B,C,H,W)
 				-- inputs[2]: words in number format
     local targets = batch.targets -- targets
@@ -223,11 +235,8 @@ while true do -- run forever until reach max_iters
     -- unpack done in LMClassNLLCriterion
     --local loss = criterion:forward(outputs, targets)
     local loss1 = crit1:forward(outputs, targets)
-    print ("loss1 is:", loss1)
     local loss2 = crit2:forward(outputs, targets)
-    print ("loss2 is:", loss2)
     sumErr = sumErr + loss1 + opt.lamda*loss2
-    print ("Total Loss is:", sumErr)
 
     --io.read(1)
     -- backward
@@ -248,6 +257,15 @@ while true do -- run forever until reach max_iters
     agent:updateGradParameters(opt.momentum)
     agent:updateParameters(opt.learningRate)
     agent:maxParamNorm(opt.maxOutNorm)
+
+    t = sys.toc()
+	time = time + t
+	if iter % opt.show_status_per_iter == 0 then 
+        --io.write('   <elapsed ', t, "s> \n") 
+        io.write('   <per iter costs ', utils.roundToNthDecimal((time/opt.show_status_per_iter),2), "s> \n") 
+        io.write ("    loss=", sumErr, '\n')
+		time = 0
+	end
 
     if iter % 1000 == 0 then
 	collectgarbage()

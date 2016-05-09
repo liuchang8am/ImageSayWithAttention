@@ -8,6 +8,7 @@ function LMClassNLLCriterion:__init(args)
     self.criterion = nn.ClassNLLCriterion()
     self.vocab = args.vocab
     self.vocab_size = utils.count_keys(self.vocab)
+	self.gpuid = args.gpuid
 end
 
 function LMClassNLLCriterion:updateOutput(inputTable, targets) -- criterion forward
@@ -27,9 +28,13 @@ function LMClassNLLCriterion:updateOutput(inputTable, targets) -- criterion forw
     local end_token = self.vocab_size+1
 
     -- need to reformat the inputs in batch x timestep, rather than timestep x batch
-    inputs = utils.reformat(inputs, self.batchSize, self.nStep)
+	inputs = utils.reformat(inputs, self.batchSize, self.nStep, self.gpuid)
     -- set the gradInput after the reformat of inputs
-    self.gradInput = torch.DoubleTensor(inputs:size()):zero() --#TODO: tensor type ?? if cuda ??
+	if self.gpuid >= 0 then
+	    self.gradInput = torch.CudaTensor(inputs:size()):zero()
+	else
+        self.gradInput = torch.DoubleTensor(inputs:size()):zero() --#TODO: tensor type ?? if cuda ??
+	end
 
     local n = 0 -- for loss normalization
     for batch = 1, self.batchSize do -- first iterate over batch 
