@@ -6,12 +6,13 @@ local utils = require 'misc.utils'
 --user-defined packages
 require 'misc.DataLoader' -- load dataset 'flickr8k', Ffickr30k or coco 
 require './lib/RecurrentAttentionCaptioner'
+require 'misc.LC'
 --require './lib/VRCIDErReward' -- variance reduced CIDEr reward #TODO: change to BLEU4 if CIDEr fails --> Done
 require './lib/BLEUReward' -- BLEU reward
 require './lib/LMClassNLLCriterion' -- NLL language loss
 --require 'lib/LMCriterion'
 
-local debug = false
+local debug = true
 
 -------------------------------------------
 --- command line parameters
@@ -30,7 +31,7 @@ cmd:option('--minLR', 0.00001, 'minimum learning rate')
 cmd:option('--momentum', 0.9, 'momentum')
 cmd:option('--maxOutNorm', -1, 'max norm each layers output neuron weights')
 cmd:option('--cutoffNorm', -1, 'max l2-norm of contatenation of all gradParam tensors')
-cmd:option('--batchSize', 20, 'number of examples per batch') -- actual batch size is this batchSize * 5, where 5 is 5 sentences / image; this parameter should be >= 1
+cmd:option('--batchSize', 1, 'number of examples per batch') -- actual batch size is this batchSize * 5, where 5 is 5 sentences / image; this parameter should be >= 1
 cmd:option('--gpuid', -1, 'sets the device (GPU) to use. -1 = CPU')
 cmd:option('--max_iters', -1, 'maximum iterations to run, -1 = forever')
 cmd:option('--transfer', 'ReLU', 'activation function')
@@ -93,12 +94,14 @@ local ds = DataLoader{h5_file=input_h5_file, json_file=input_json_file}
 
 -- 1. location sensor
 locationSensor = nn.Sequential()
+--locationSensor:add(nn.LC())
 locationSensor:add(nn.SelectTable(2)) -- select {x,y}
 locationSensor:add(nn.Linear(2,opt.locatorHiddenSize))
 locationSensor:add(nn[opt.transfer]())
 
 -- 2.glimpse sensor
 glimpseSensor = nn.Sequential()
+--glimpseSensor:add(nn.LC())
 glimpseSensor:add(nn.DontCast(nn.SpatialGlimpse(opt.glimpsePatchSize, opt.glimpseDepth, opt.glimpseScale):float(), true))
 glimpseSensor:add(nn.Collapse(3))
 glimpseSensor:add(nn.Linear(ds:imageSize('c')*opt.glimpsePatchSize^2*opt.glimpseDepth, opt.glimpseHiddenSize))
@@ -106,21 +109,22 @@ glimpseSensor:add(nn[opt.transfer]())
 
 --- 3.glimpse
 glimpse = nn.Sequential()
+glimpse:add(nn.SelectTable(1)) -- Select the {image, (x,y)}
 glimpse:add(nn.ConcatTable():add(locationSensor):add(glimpseSensor))
 glimpse:add(nn.JoinTable(1,1))
 glimpse:add(nn.Linear(opt.locatorHiddenSize+opt.glimpseHiddenSize, opt.imageHiddenSize))
-glimpse:add(nn[opt.transfer]())
+--glimpse:add(nn[opt.transfer]())
 --glimpse:add(nn.Linear(opt.imageHiddenSize, opt.hiddenSize))
 
 -- 4.words embedding
 wordsEmbedding = nn.Sequential()
 local lookup = nn.LookupTable(ds:getVocabSize()+1, opt.wordsEmbeddingSize)
 lookup.maxnormout = -1
-wordsEmbedding:add(nn.SelectTable(3)) -- select the words
+wordsEmbedding:add(nn.SelectTable(2)) -- Select the words
 wordsEmbedding:add(lookup)
 wordsEmbedding:add(nn.SplitTable(2)) 
 wordsEmbedding:add(nn.SelectTable(1))
-wordsEmbedding:add(nn[opt.transfer]())
+--wordsEmbedding:add(nn[opt.transfer]())
 
 -- 5.multimadalEmbedding
 multimodalEmbedding = nn.Sequential()
