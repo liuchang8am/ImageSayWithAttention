@@ -43,7 +43,7 @@ function RecurrentAttentionCaptioner:updateOutput(inputs)
 
    for step=1,self.nStep do --self.nStep is opt.rho value
       
-      --print ("RecurrentAttentionCaptioner step = ", step) --io.read(1)
+      --print (" -->forward step = ", step) --io.read(1)
       
       if step == 1 then
          -- sample an initial starting actions by forwarding zeros through the action
@@ -65,7 +65,8 @@ function RecurrentAttentionCaptioner:updateOutput(inputs)
       
       -- rnn handles the recurrence internally
       word = words[{{}, {step}}] -- select word [i]
-      local output = self.rnn:updateOutput{input, self.actions[step], word}
+      local output = self.rnn:updateOutput{{input, self.actions[step]}, word}
+      --local output = self.rnn:updateOutput{input, self.actions[step]}
       --self.output[step] = self.forwardActions and {output, self.actions[step]} or output
       self.output[step] = output
    end
@@ -87,7 +88,7 @@ function RecurrentAttentionCaptioner:updateGradInput(inputs, gradOutput)
     
    -- back-propagate through time (BPTT)
    for step=self.nStep,1,-1 do
-      --print ("---------> BPTT step", step)
+      --print (" --> backward step", step)
       -- 1. backward through the action layer
       local gradOutput_, gradAction_ = gradOutput[step]
 
@@ -119,11 +120,13 @@ function RecurrentAttentionCaptioner:updateGradInput(inputs, gradOutput)
       
       -- 2. backward through the rnn layer
       word = words[{{}, {step}}] -- select word [i]
-      local gradInput = self.rnn:updateGradInput({input, self.actions[step]}, self.gradHidden[step])[1] --#TODO: add word or not??
-      --local gradInput = self.rnn:updateGradInput({input, self.actions[step], word}, self.gradHidden[step])[1]
-      --print ("gradInput outputs by self.rnn:updateGradInput")
-      --print (torch.min(gradInput))
-      --io.read(1)
+      --print (input:size(), "up is input") io.read(1)
+      --print (self.actions[step], "up is self.actions[step]") io.read(1)
+      --print (self.gradHidden[step], "up is self.gradHidden[step]") io.read(1)
+      --local temp = self.rnn:updateGradInput({input, self.actions[step]}, self.gradHidden[step])
+      --print ("temp", temp) io.read(1)
+      local gradInput = self.rnn:updateGradInput({{input, self.actions[step]},word}, self.gradHidden[step])[1][1]
+      --local gradInput = self.rnn:updateGradInput({input, self.actions[step]}, self.gradHidden[step])[1] 
       if step == self.nStep then
          self.gradInput:resizeAs(gradInput):copy(gradInput)
       else
