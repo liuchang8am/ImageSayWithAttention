@@ -11,7 +11,7 @@ require 'lib.LMClassNLLCriterion' -- NLL language loss
 require 'misc.LC'
 require 'sys'
 
-local debug = false
+local debug = true
 
 -------------------------------------------
 --- command line parameters
@@ -21,8 +21,7 @@ cmd:text()
 cmd:text('Options')
 
 --- training options ---
-
-cmd:option('--dataset', 'coco', 'training on which dataset? Flickr8k, Flickr30k or MSCOCO')
+cmd:option('--dataset', 'flickr8k', 'training on which dataset? Flickr8k, Flickr30k or MSCOCO')
 cmd:option('--learningRate', 0.0001, 'learning rate at t=0')
 cmd:option('--lr_decay_every_iter', 10000, 'decay learning rate every __ iter, by opt.lr_decay_factor')
 cmd:option('--lr_decay_factor', 10, 'decay learning rate by __')
@@ -31,7 +30,8 @@ cmd:option('--momentum', 0.9, 'momentum')
 cmd:option('--maxOutNorm', -1, 'max norm each layers output neuron weights')
 cmd:option('--cutoffNorm', -1, 'max l2-norm of contatenation of all gradParam tensors')
 cmd:option('--batch_size', 10, 'number of examples per batch') -- actual batch size is this batchSize * 5, where 5 is 5 sentences / image; this parameter should be >= 1
-cmd:option('--gpuid', 1, 'sets the device (GPU) to use. -1 = CPU')
+cmd:option('--validsize', 10, 'number of batch for validation')
+cmd:option('--gpuid', -1, 'sets the device (GPU) to use. -1 = CPU')
 cmd:option('--max_iters', -1, 'maximum iterations to run, -1 = forever')
 cmd:option('--transfer', 'ReLU', 'activation function')
 cmd:option('--uniform', 0.1, 'initialize parameters using uniform distribution between -uniform and uniform. -1 means default initialization')
@@ -41,6 +41,7 @@ cmd:option('--silent', false, 'dont print anything to stdout')
 cmd:option('--eval_every_iter', 2000, 'eval on validation set every __ iter')
 cmd:option('--eval_use_image', 100, 'eval using __ images in validation set')
 cmd:option('--show_status_per_iter', 10, 'show training status every ? iters (avoid frequent print)')
+cmd:option('--save_path', './', 'path to save the trained model')
 
 -- loss
 cmd:option('--lamda', 1, 'lamda that balances the two losses, i.e., NLL and Reward')
@@ -205,14 +206,19 @@ end
 local iter = 0
 local t = sys.clock()
 local time = 0
+
+local results = {}
+results.model = agent
+results.opt = opt
+results.min_valppl = 1e6
 --- Start training! ---
 while true do -- run forever until reach max_iters
     agent:training()
-	sys.tic()
+    sys.tic()
 
-	if iter % opt.show_status_per_iter == 0 then 
-        io.write ("===========> Iter:", iter, ' ')
-	end
+    if iter % opt.show_status_per_iter == 0 then 
+	io.write ("===========> Iter:", iter, ' ')
+    end
     local sumErr = 0
 
     -- get a batch, not the actual batch_size that is forwarded is opt.batchSize * seq_per_img
@@ -259,13 +265,12 @@ while true do -- run forever until reach max_iters
     agent:maxParamNorm(opt.maxOutNorm)
 
     t = sys.toc()
-	time = time + t
-	if iter % opt.show_status_per_iter == 0 then 
-        --io.write('   <elapsed ', t, "s> \n") 
-        io.write('   <per iter costs ', utils.roundToNthDecimal((time/opt.show_status_per_iter),2), "s> \n") 
-        io.write ("    loss=", sumErr, '\n')
-		time = 0
-	end
+    time = time + t
+    if iter % opt.show_status_per_iter == 0 then 
+	io.write('   <per iter costs ', utils.roundToNthDecimal((time/opt.show_status_per_iter),2), "s> \n") 
+	io.write ("    loss=", sumErr, '\n')
+	time = 0
+    end
 
     if iter % 1000 == 0 then
 	collectgarbage()
@@ -281,11 +286,24 @@ while true do -- run forever until reach max_iters
     -- cross validation & save model
     if iter % opt.eval_every_iter == 0 then
 	-- eval performance on validation set
+	agent:evaluate()
+	local eval_batch = ds:getBatch{batch_size=opt.valid_size, split='val', seq_per_img=opt.seq_per_img}
+	local eval_inputs = eval_batch.inputs
+	local eval_targets = eval_batch.targets
+	local eval_outputs = agent:forward(eval_inputs)
+	local eval_loss1 = crit1:forward(eval_inputs)
+	local eval_loss2 = crit2:forward(eval_inputs)
+	local eval_loss = eval_loss1 + opt.lamda * eval_loss2
+	local ppl = torch.exp(eval_loss / opt.validsize)
+	print ("Evaluate on val split, getting perplexity of ", ppl) 
 
-	-- if get better performanec, save the checkpoint
-    end
-
-    if iter == opt.max_iters then -- reach max_iters
-	-- save the model
+	if ppl < results.min_valppl then -- get better checkpoint, save it
+	    results.min_valppl = ppl
+	    results.iter = iter
+	    torch.save(opt.save_path .. 'results.t7', results)
+	else
+	    print ("Exploding, early stops on iter", iter)
+	    break
+	end
     end
 end
